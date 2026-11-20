@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HPAI Coding Assessment</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --navy: #173f59;
+      --blue: #1f6688;
+      --sky: #a2cfe2;
+      --green: #0bd37a;
+      --ink: #173044;
+      --muted: #718895;
+      --line: #dce8ed;
+      --surface: #f8fbfc;
+      --white: #ffffff;
+      --shadow: 0 18px 55px rgba(28, 81, 113, .11);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Figtree, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 8%, rgba(162, 207, 226, .38), transparent 28%),
+        radial-gradient(circle at 92% 12%, rgba(11, 211, 122, .10), transparent 22%),
+        linear-gradient(135deg, #edf7fb, #f9fcfd 55%, #e7f1f6);
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .identity-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(9, 34, 50, .54);
+      backdrop-filter: blur(16px);
+    }
+    .identity-card {
+      width: min(460px, 100%);
+      border: 1px solid rgba(255,255,255,.72);
+      border-radius: 24px;
+      padding: 34px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 28px 90px rgba(7, 35, 51, .28);
+      text-align: center;
+      transform-style: preserve-3d;
+      animation: cardEnter 900ms cubic-bezier(.2,.85,.2,1) both;
+    }
+    .identity-screen.opening { animation: portalFade 900ms 900ms ease forwards; }
+    .identity-screen.opening .identity-card { animation: portalLift 900ms cubic-bezier(.2,.85,.2,1) forwards; }
+    @keyframes cardEnter {
+      0% { opacity: 0; transform: perspective(900px) rotateX(10deg) translateY(30px) scale(.92); filter: blur(8px); }
+      100% { opacity: 1; transform: perspective(900px) rotateX(0) translateY(0) scale(1); filter: blur(0); }
+    }
+    @keyframes portalLift {
+      0% { opacity: 1; transform: perspective(900px) rotateX(0) scale(1); filter: blur(0); }
+      45% { box-shadow: 0 0 60px rgba(105,202,241,.8), 0 28px 90px rgba(7,35,51,.28); transform: perspective(900px) scale(1.05); }
+      100% { opacity: 0; transform: perspective(900px) rotateX(-8deg) scale(.72); filter: blur(12px); }
+    }
+    @keyframes portalFade {
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .identity-card img { width: 82px; height: 82px; object-fit: contain; margin-bottom: 8px; }
+    .identity-card h1 { margin: 8px 0 6px; font-size: 29px; letter-spacing: -.8px; color: var(--navy); }
+    .identity-card p { margin: 0 0 22px; color: var(--muted); line-height: 1.55; }
+    .field { text-align: left; margin: 16px 0 18px; }
+    .field label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 800; color: var(--navy); }
+    .field input {
+      width: 100%;
+      height: 48px;
+      border: 1px solid #cfdfe6;
+      border-radius: 11px;
+      padding: 0 14px;
+      outline: none;
+      color: var(--ink);
+      background: #fafdfe;
+    }
+    .field input:focus { border-color: #65aaca; box-shadow: 0 0 0 4px rgba(101,170,202,.13); }
+    .field-error { min-height: 18px; color: #b53b50; font-size: 12px; margin-top: 7px; }
+    .start-btn {
+      width: 100%;
+      height: 50px;
+      border: 0;
+      border-radius: 11px;
+      color: white;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+      box-shadow: 0 12px 28px rgba(23,63,89,.20);
+    }
+
+    header {
+      height: 76px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid rgba(255,255,255,.72);
+      background: rgba(255,255,255,.76);
+      backdrop-filter: blur(20px);
+    }
+    .head {
+      max-width: 1380px;
+      height: 100%;
+      margin: auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand img { width: 50px; height: 50px; object-fit: contain; }
+    .brand h1 { margin: 0; color: var(--navy); font-size: 20px; }
+    .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    .assessment-meta { display: flex; align-items: center; gap: 10px; }
+    .candidate-pill, .timer {
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(23,63,89,.09);
+      border-radius: 999px;
+      padding: 0 13px;
+      background: rgba(231,240,245,.72);
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .timer { min-width: 92px; justify-content: center; font-family: 'JetBrains Mono', monospace; }
+    .timer.warning { color: #9d4a1d; background: #fff1df; border-color: #f2d19e; }
+
+    main { max-width: 1380px; margin: auto; padding: 18px 24px 45px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .tabs { display: flex; gap: 8px; }
+    .tab {
+      border: 1px solid rgba(23,63,89,.10);
+      border-radius: 10px;
+      padding: 9px 14px;
+      background: rgba(255,255,255,.65);
+      color: var(--navy);
+      font-weight: 800;
+    }
+    .tab.active { color: white; background: linear-gradient(135deg, var(--navy), #28799e); box-shadow: 0 8px 20px rgba(23,63,89,.16); }
+    .progress { color: var(--muted); font-size: 13px; }
+
+    .grid { display: grid; grid-template-columns: minmax(340px, .78fr) minmax(520px, 1.22fr); gap: 16px; }
+    .card {
+      border: 1px solid rgba(255,255,255,.78);
+      border-radius: 18px;
+      background: rgba(255,255,255,.68);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transform-style: preserve-3d;
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+    .card:hover {
+      transform: perspective(1400px) translateY(-2px);
+      box-shadow: 0 24px 70px rgba(28,81,113,.16), inset 0 1px rgba(255,255,255,.85);
+      border-color: rgba(255,255,255,.95);
+    }
+    .problem { padding: 24px; }
+    .kicker {
+      display: inline-flex;
+      border-radius: 8px;
+      padding: 6px 9px;
+      background: rgba(162,207,226,.28);
+      color: #176786;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+    }
+    .problem h2 { margin: 10px 0 8px; font-size: 25px; letter-spacing: -.4px; }
+    .statement { margin: 0 0 16px; line-height: 1.62; color: #526c7b; }
+    .box {
+      margin-top: 12px;
+      border: 1px solid rgba(23,63,89,.08);
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(247,251,253,.72);
+    }
+    .box h3 { margin: 0 0 9px; color: var(--navy); font-size: 13px; }
+    .box ul { margin: 0; padding-left: 18px; color: #657d89; font-size: 13px; line-height: 1.65; }
+    .tests { display: grid; gap: 7px; }
+    .test {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      border: 1px solid rgba(23,63,89,.06);
+      border-radius: 9px;
+      padding: 9px 10px;
+      background: rgba(255,255,255,.68);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .label { display: block; margin-bottom: 4px; color: #91a4ae; font-family: Figtree, sans-serif; font-size: 9px; font-weight: 800; }
+    .expected { color: #168456; }
+    .hint-btn {
+      margin-top: 12px;
+      border: 1px solid #d0e1e8;
+      border-radius: 9px;
+      padding: 9px 12px;
+      background: white;
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .hint {
+      display: none;
+      margin-top: 9px;
+      border: 1px solid #bcebd1;
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #effaf5;
+      color: #28704f;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .hint-snippet {
+      display: none;
+      width: 100%;
+      margin-top: 8px;
+      border: 1px solid rgba(23,63,89,.10);
+      border-radius: 8px;
+      padding: 9px 10px;
+      text-align: left;
+      color: #145c78;
+      background: rgba(255,255,255,.72);
+      font: 12px/1.45 'JetBrains Mono', Consolas, monospace;
+      cursor: pointer;
+    }
+    .hint-snippet small {
+      display: block;
+      margin-bottom: 4px;
+      color: #7d959f;
+      font: 800 9px Figtree, sans-serif;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    .solved-example {
+      margin-top: 12px;
+      border: 1px solid rgba(23,63,89,.08);
+      border-radius: 12px;
+      background: rgba(247,251,253,.72);
+      overflow: hidden;
+    }
+    .solved-example summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .solved-example summary::-webkit-details-marker { display: none; }
+    .solved-example summary:after { content: "+"; float: right; color: #7e9aa8; }
+    .solved-example[open] summary:after { content: "−"; }
+    .solved-example pre {
+      margin: 0;
+      border-top: 1px solid rgba(23,63,89,.07);
+      padding: 12px 14px;
+      overflow: auto;
+      color: #3f6f82;
+      background: rgba(255,255,255,.58);
+      font: 11.5px/1.6 'JetBrains Mono', monospace;
+      white-space: pre-wrap;
+    }
+
+    .editor-card { position: relative; }
+    .editor-head {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      color: white;
+      background: linear-gradient(135deg, #143f57, #1c5675);
+    }
+    .window-dots { display: flex; align-items: center; gap: 6px; }
+    .window-dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--sky); }
+    .window-title { margin-left: 7px; color: #bfe2ef; font-size: 11px; }
+    select {
+      border: 1px solid rgba(162,207,226,.24);
+      border-radius: 8px;
+      padding: 7px 30px 7px 10px;
+      color: white;
+      background: #17445c;
+      outline: none;
+    }
+    .read-only-code {
+      width: 100%;
+      margin: 0;
+      border: 0;
+      padding: 12px 20px;
+      overflow: hidden;
+      color: #86abc0;
+      background: #0a2333;
+      font: 12.5px/1.55 'JetBrains Mono', Consolas, monospace;
+      white-space: pre-wrap;
+    }
+    .read-only-code.signature {
+      padding-bottom: 2px;
+      border-bottom: 1px solid rgba(162,207,226,.05);
+    }
+    .read-only-code.driver {
+      padding-top: 2px;
+      border-top: 1px solid rgba(162,207,226,.06);
+    }
+    textarea {
+      width: 100%;
+      min-height: 360px;
+      resize: vertical;
+      border: 0;
+      outline: 0;
+      padding: 18px 20px;
+      color: #dffff2;
+      caret-color: #55dfa1;
+      background: linear-gradient(145deg, #0d293b, #091e2d);
+      font: 13.5px/1.75 'JetBrains Mono', Consolas, monospace;
+      tab-size: 4;
+    }
+    .editor-foot {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-top: 1px solid #dce9ef;
+      background: rgba(247,251,253,.88);
+    }
+    .btn {
+      min-height: 42px;
+      border-radius: 10px;
+      padding: 0 14px;
+      font-weight: 800;
+    }
+    .btn-secondary { border: 1px solid #cadfe7; background: white; color: var(--navy); }
+    .btn-submit { border: 0; color: #073526; background: linear-gradient(135deg, #0bef91, #20d892); box-shadow: 0 8px 22px rgba(11,211,122,.15); }
+    .run-output {
+      display: none;
+      border-top: 1px solid #cde0e7;
+      padding: 12px 14px;
+      background: #edf8f3;
+      color: #24714f;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .result-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      place-items: center;
+      padding: 20px;
+      background: rgba(9,34,50,.58);
+      backdrop-filter: blur(14px);
+    }
+    .result-card {
+      width: min(610px, 100%);
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      border-radius: 22px;
+      padding: 28px;
+      background: rgba(255,255,255,.96);
+      box-shadow: 0 28px 90px rgba(7,35,51,.30);
+    }
+    .result-card h2 { margin: 8px 0 2px; color: var(--navy); font-size: 22px; }
+    .submitted-name { color: var(--muted); font-size: 13px; }
+    .score-row { display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 15px 0 17px; }
+    .score { color: var(--navy); font-size: 52px; line-height: 1; font-weight: 800; }
+    .score span { color: var(--muted); font-size: 20px; }
+    .grade { border-radius: 999px; padding: 8px 12px; background: #e7f8ef; color: #14754a; font-size: 13px; font-weight: 800; }
+    .breakdown { display: grid; gap: 9px; margin: 16px 0 18px; }
+    .breakdown-item { border: 1px solid var(--line); border-radius: 11px; padding: 12px; }
+    .breakdown-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+    .breakdown-bar { height: 6px; border-radius: 99px; background: #edf3f6; overflow: hidden; }
+    .breakdown-bar div { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #65b2d1, #19c77b); }
+    .result-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .footer { text-align: center; margin-top: 18px; color: #7d939f; font-size: 11px; }
+
+    @media (max-width: 950px) {
+      .grid { grid-template-columns: 1fr; }
+      textarea { min-height: 380px; }
+      .candidate-pill { display: none; }
+    }
+    @media (max-width: 620px) {
+      header { height: 68px; }
+      .brand h1 { font-size: 16px; }
+      .brand img { width: 44px; height: 44px; }
+      main { padding: 12px 12px 30px; }
+      .head { padding: 0 12px; }
+      .topbar { align-items: flex-start; }
+      .progress { display: none; }
+      .problem { padding: 18px; }
+      .problem h2 { font-size: 21px; }
+      .editor-foot { align-items: stretch; }
+      .editor-foot .btn { flex: 1; }
+      textarea { min-height: 340px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="identity-screen" id="identityScreen">
+    <div class="identity-card">
+      <img src="logo.png" alt="HPAI">
+      <h1>HPAI Coding Assessment</h1>
+      <p>Enter your name to begin your timed coding challenge.</p>
+      <div class="field">
+        <label for="candidateName">Candidate name</label>
+        <input id="candidateName" maxlength="60" autocomplete="name" placeholder="Enter your full name">
+        <div class="field-error" id="nameError"></div>
+      </div>
+      <button class="start-btn" id="startBtn">Start Assessment</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="head">
+      <div class="brand">
+        <img src="logo.png" alt="HPAI mascot">
+        <div><h1>HPAI Coding Assessment</h1><p>Basic Coding Skills Evaluation</p></div>
+      </div>
+      <div class="assessment-meta">
+        <div class="candidate-pill" id="candidatePill">Candidate</div>
+        <div class="timer" id="timer">15:00</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="topbar">
+      <div class="tabs" id="tabs"></div>
+      <div class="progress" id="progress">Question 1 of 2</div>
+    </div>
+    <div class="grid">
+      <section class="card problem">
+        <div class="kicker" id="kicker">Problem 1 · 10 marks</div>
+        <h2 id="title"></h2>
+        <p class="statement" id="statement"></p>
+        <div class="box">
+          <h3>Constraints</h3>
+          <ul id="constraints"></ul>
+        </div>
+        <div class="box">
+          <h3>Sample test cases</h3>
+          <div class="tests" id="tests"></div>
+        </div>
+        <button class="hint-btn" id="hintBtn">Show hint</button>
+        <div class="hint" id="hint">
+          <div id="hintText"></div>
+          <button class="hint-snippet" id="hintSnippet" type="button"></button>
+        </div>
+        <details class="solved-example">
+          <summary>Example solution</summary>
+          <pre id="example"></pre>
+        </details>
+      </section>
+
+      <section class="card editor-card">
+        <div class="editor-head">
+          <div class="window-dots"><span></span><span></span><span></span><b class="window-title">Code Editor</b></div>
+          <select id="language" aria-label="Programming language">
+            <option>Python</option>
+            <option>JavaScript</option>
+            <option>Java</option>
+            <option>C++</option>
+          </select>
+        </div>
+        <pre class="read-only-code signature" id="signature"></pre>
+        <textarea id="code" spellcheck="false" aria-label="Editable function body"></textarea>
+        <pre class="read-only-code driver" id="driver"></pre>
+        <div class="run-output" id="runOutput"></div>
+        <div class="editor-foot">
+          <button class="btn btn-secondary" id="runBtn">Run sample tests</button>
+          <button class="btn btn-submit" id="submitBtn">Submit Assessment</button>
+        </div>
+      </section>
+    </div>
+    <div class="footer">HPAI Coding Assessment · Automated evaluation</div>
+  </main>
+
+  <div class="result-modal" id="resultModal">
+    <div class="result-card">
+      <div class="kicker">Assessment submitted</div>
+      <h2 id="resultTitle">Candidate Result</h2>
+      <div class="submitted-name" id="submittedName"></div>
+      <div class="score-row">
+        <div class="score"><b id="totalScore">0</b><span>/20</span></div>
+        <div class="grade" id="grade">Needs Review</div>
+      </div>
+      <div class="breakdown" id="breakdown"></div>
+      <div class="result-actions">
+        <button class="btn btn-secondary" id="reviewBtn">Review Answers</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const QUESTIONS = [
+      { id:'sort', title:'Sort an Array', statement:'Sort the given array in ascending order without using a built-in sorting function.', constraints:['0 ≤ arr.length ≤ 1,000','-10,000 ≤ arr[i] ≤ 10,000','Do not use built-in sorting functions.'], hint:'Compare values and move smaller values toward the beginning. Bubble, selection, or insertion sort are valid.', tests:[['[2, 4, 8, 3, 1]','[1, 2, 3, 4, 8]'],['[-1, 5, 0, -3]','[-3, -1, 0, 5]'],['[]','[]']], function:'sortArray', core:['sort','swap','for','while','temp','bubble','selection'], snippet:'arr[i], arr[j] = arr[j], arr[i]', example:'Python\nfor i in range(len(arr)):\n    for j in range(i + 1, len(arr)):\n        if arr[j] < arr[i]:\n            arr[i], arr[j] = arr[j], arr[i]\nreturn arr' },
+      { id:'unique', title:'Remove Duplicate Characters', statement:'Remove duplicate characters while preserving their first-occurrence order.', constraints:['0 ≤ text.length ≤ 10,000','Comparison is case-sensitive','Spaces and symbols are valid characters.'], hint:'Track characters you have already seen and append a character only on its first occurrence.', tests:[['"programming"','"progamin"'],['"banana"','"ban"'],['""','""']], function:'removeDuplicates', core:['set','seen','includes','contains','indexof','distinct'], snippet:'if character not in seen:', example:'Python\nseen = set()\nresult = ""\nfor char in text:\n    if char not in seen:\n        seen.add(char)\n        result += char\nreturn result' },
+      { id:'largest', title:'Find the Largest Number', statement:'Return the largest number without using max() or an equivalent built-in function.', constraints:['1 ≤ arr.length ≤ 10,000','The array may contain negative values.'], hint:'Start with the first value as largest, then compare each remaining value with it.', tests:[['[12, 7, 25, 3, 19]','25'],['[-8, -2, -11]','-2'],['[6]','6']], function:'findLargest', core:['largest','maximum','greatest','>','for','while'], snippet:'if value > largest:', example:'Python\nlargest = arr[0]\nfor value in arr:\n    if value > largest:\n        largest = value\nreturn largest' },
+      { id:'palindrome', title:'Palindrome Check', statement:'Return whether the text reads the same forward and backward without using a built-in reverse function.', constraints:['0 ≤ text.length ≤ 10,000','Use exact, case-sensitive comparison.'], hint:'Use two pointers, one at the start and one at the end, moving both toward the centre.', tests:[['"level"','true'],['"coding"','false'],['"a"','true']], function:'isPalindrome', core:['left','right','i','j','!=','==','char'], snippet:'left, right = 0, len(text) - 1', example:'Python\nleft, right = 0, len(text) - 1\nwhile left < right:\n    if text[left] != text[right]:\n        return False\n    left += 1\n    right -= 1\nreturn True' },
+      { id:'vowels', title:'Count Vowels', statement:'Return the number of vowels in the given text. Uppercase and lowercase vowels both count.', constraints:['0 ≤ text.length ≤ 10,000','Vowels are a, e, i, o and u.'], hint:'Visit every character, normalise its case, and check whether it is in the vowel collection.', tests:[['"Education"','5'],['"rhythm"','0'],['"AEIOU"','5']], function:'countVowels', core:['aeiou','vowel','count','lower','tolower','includes'], snippet:'if character in vowels:', example:'Python\ncount = 0\nvowels = "aeiou"\nfor char in text.lower():\n    if char in vowels:\n        count += 1\nreturn count' },
+      { id:'fibonacci', title:'Generate Fibonacci Numbers', statement:'Return the first n Fibonacci numbers using iteration.', constraints:['0 ≤ n ≤ 50','The sequence starts with 0, 1.'], hint:'Keep two consecutive values. Append the first value, then update both using their sum.', tests:[['7','[0, 1, 1, 2, 3, 5, 8]'],['1','[0]'],['0','[]']], function:'fibonacci', core:['fibonacci','previous','next','a+b','b=a+b','for','while'], snippet:'first, second = second, first + second', example:'Python\nresult = []\na, b = 0, 1\nfor i in range(n):\n    result.append(a)\n    a, b = b, a + b\nreturn result' }
+    ];
+
+    const EDITOR_LAYOUT = {
+      Python: q => ({
+        signature: `def ${q.function === 'sortArray' ? 'sort_array' : q.function === 'removeDuplicates' ? 'remove_duplicates' : q.function === 'findLargest' ? 'find_largest' : q.function === 'isPalindrome' ? 'is_palindrome' : q.function === 'countVowels' ? 'count_vowels' : 'fibonacci'}(${q.id === 'sort' || q.id === 'largest' ? 'arr' : q.id === 'fibonacci' ? 'n' : 'text'}):`,
+        body: `    # Write your solution here\n    pass`,
+        driver: `\n# Read-only driver code\nif __name__ == "__main__":\n    print("Result: run with the provided test cases")`
+      }),
+      JavaScript: q => ({
+        signature: `function ${q.function}(${q.id === 'sort' || q.id === 'largest' ? 'arr' : q.id === 'fibonacci' ? 'n' : 'text'}) {`,
+        body: `  // Write your solution here\n`,
+        driver: `}\n\n// Read-only driver code\n// const result = ${q.function}(input);`
+      }),
+      Java: q => ({
+        signature: `static ${q.id === 'sort' ? 'int[]' : q.id === 'largest' ? 'int' : q.id === 'unique' ? 'String' : q.id === 'palindrome' ? 'boolean' : q.id === 'vowels' ? 'int' : 'int[]'} ${q.function}(${q.id === 'sort' || q.id === 'largest' ? 'int[] arr' : q.id === 'unique' || q.id === 'palindrome' || q.id === 'vowels' ? 'String text' : 'int n'}) {`,
+        body: `    // Write your solution here\n`,
+        driver: `}\n\n// Read-only driver code\n// public static void main(String[] args) { }`
+      }),
+      'C++': q => ({
+        signature: `auto ${q.function}(${q.id === 'sort' || q.id === 'largest' ? 'vector<int> arr' : q.id === 'unique' || q.id === 'palindrome' || q.id === 'vowels' ? 'string text' : 'int n'}) {`,
+        body: `    // Write your solution here\n`,
+        driver: `}\n\n// Read-only driver code\n// int main() { return 0; }`
+      })
+    };
+
+    let candidateName = '';
+    let selected = [];
+    let active = 0;
+    let answers = {};
+    let startedAt = null;
+    let timerId = null;
+    let submitted = false;
+
+    const $ = id => document.getElementById(id);
+
+    function shuffleQuestions() {
+      return [...QUESTIONS].sort(() => Math.random() - .5).slice(0, 2);
+    }
+
+    function saveAnswer() {
+      if (!selected[active]) return;
+      answers[selected[active].id] = { language: $('language').value, code: $('code').value };
+    }
+
+    function draw() {
+      const q = selected[active];
+      $('tabs').innerHTML = selected.map((item, index) =>
+        `<button class="tab ${index === active ? 'active' : ''}" data-index="${index}">Q${index + 1}${answers[item.id] ? ' ✓' : ''}</button>`
+      ).join('');
+      $('tabs').querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => go(Number(button.dataset.index))));
+      $('kicker').textContent = `Problem ${active + 1} · 10 marks`;
+      $('title').textContent = q.title;
+      $('statement').textContent = q.statement;
+      $('constraints').innerHTML = q.constraints.map(item => `<li>${item}</li>`).join('');
+      $('tests').innerHTML = q.tests.map(test => `
+        <div class="test">
+          <div><span class="label">INPUT</span><code>${escapeHtml(test[0])}</code></div>
+          <div><span class="label">EXPECTED</span><code class="expected">${escapeHtml(test[1])}</code></div>
+        </div>`).join('');
+      $('hintText').textContent = q.hint;
+      $('hintSnippet').innerHTML = `<small>Click to insert</small>${escapeHtml(q.snippet)}`;
+      $('hintSnippet').style.display = 'none';
+      $('hint').style.display = 'none';
+      $('hintBtn').textContent = 'Show hint';
+      $('example').textContent = q.example;
+      document.querySelector('.solved-example').open = false;
+      $('progress').textContent = `Question ${active + 1} of 2`;
+      const saved = answers[q.id];
+      $('language').value = saved?.language || 'Python';
+      const layout = EDITOR_LAYOUT[$('language').value](q);
+      $('signature').textContent = layout.signature;
+      $('driver').textContent = layout.driver;
+      $('code').value = saved?.code || layout.body;
+      $('runOutput').style.display = 'none';
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
+    }
+
+    function go(index) {
+      saveAnswer();
+      active = index;
+      draw();
+    }
+
+    function changeLanguage() {
+      const q = selected[active];
+      const layout = EDITOR_LAYOUT[$('language').value](q);
+      $('signature').textContent = layout.signature;
+      $('driver').textContent = layout.driver;
+      $('code').value = layout.body;
+      $('runOutput').style.display = 'none';
+    }
+
+    function toggleHint() {
+      const visible = $('hint').style.display === 'block';
+      $('hint').style.display = visible ? 'none' : 'block';
+      $('hintSnippet').style.display = visible ? 'none' : 'block';
+      $('hintBtn').textContent = visible ? 'Show hint' : 'Hide hint';
+    }
+
+    function insertHintSnippet() {
+      const code = $('code');
+      const q = selected[active];
+      const language = $('language').value;
+      let snippet = q.snippet;
+
+      if (language === 'JavaScript') {
+        if (q.id === 'sort') snippet = 'arr[i] = arr[j];';
+        else if (q.id === 'unique') snippet = 'if (!seen.includes(character))';
+        else if (q.id === 'largest') snippet = 'if (value > largest)';
+        else if (q.id === 'palindrome') snippet = 'left = 0; right = text.length - 1;';
+        else if (q.id === 'vowels') snippet = 'if (vowels.includes(character))';
+        else snippet = 'first = second;';
+      } else if (language === 'Java') {
+        if (q.id === 'sort') snippet = 'int temp = arr[i];';
+        else snippet = '// Add the core comparison or loop here';
+      } else if (language === 'C++') {
+        snippet = '// Add the core comparison or loop here';
+      }
+
+      const start = code.selectionStart;
+      const end = code.selectionEnd;
+      const before = code.value.slice(0, start);
+      const after = code.value.slice(end);
+      const lineStart = before.match(/(?:^|\n)([ \t]*)$/)?.[1] || '';
+      const indent = language === 'Python' ? (lineStart || '    ') : (lineStart || '  ');
+      const needsIndent = start === 0 || before.endsWith('\n');
+      const inserted = (needsIndent ? indent : '') + snippet;
+      code.value = before + inserted + after;
+      code.focus();
+      code.selectionStart = code.selectionEnd = before.length + inserted.length;
+      saveAnswer();
+    }
+
+    function isHardCoded(code, q) {
+      if (q.id === 'sort') return /\[[^\]]*(1,\s*2,\s*3,\s*4,\s*8|2,\s*4,\s*8,\s*3,\s*1)\]/.test(code);
+      if (q.id === 'unique') return /programming|progamin|banana|"(ban)"/i.test(code);
+      if (q.id === 'largest') return /25|-2|12,\s*7,\s*25/.test(code);
+      if (q.id === 'palindrome') return /level|coding/i.test(code);
+      if (q.id === 'vowels') return /Education|rhythm/i.test(code);
+      if (q.id === 'fibonacci') return /\[\s*0,\s*1,\s*1,\s*2,\s*3,\s*5,\s*8\s*\]/.test(code);
+      return false;
+    }
+
+    function evaluateAnswer(q, record) {
+      const code = (record?.code || '').trim();
+      const lower = code.toLowerCase();
+      if (!code) return { score: 0, tests: 0, details: ['No submission'], grade: 'Not attempted' };
+
+      const placeholder = /write your code here|^\s*(pass|return\s*["']{2})\s*$/m.test(lower);
+      if (placeholder) return { score: 0, tests: 0, details: ['Implementation missing'], grade: 'Not attempted' };
+
+      const lang = record.language;
+      const edited = code.length > 40 && !lower.includes('write your code here');
+      const hasLoop = /\b(for|while)\s*(\(|\s)|foreach/.test(lower);
+      const hasCore = q.core.some(token => lower.includes(token.toLowerCase().replace(/^\s*|\s$/g, '')));
+      const returnsOutput = /\b(return|print|console\.log|printf|cout|system\.out\.println)\b/.test(lower);
+      const hardCoded = isHardCoded(code, q);
+
+      let testsPassed = 0;
+      if (edited && !hardCoded) {
+        if (lang === 'JavaScript') testsPassed = runJavaScriptTests(q, code);
+        else {
+          const likelyCorrect =
+            (q.id === 'sort' && hasLoop && (/swap/.test(lower) || /\btemp\b/.test(lower) || /\[[^\]]+\]\s*[<>]=?\s*\[[^\]]+\]/.test(lower) || hasCore)) ||
+            (q.id === 'unique' && (/\b(set|seen|includes|contains|indexof)\b/.test(lower) || /visited/.test(lower))) ||
+            (q.id === 'largest' && (/>/.test(code) || /\blargest\b/.test(lower) || /\bmaximum\b/.test(lower))) ||
+            (q.id === 'palindrome' && (/\bleft\b/.test(lower) && /\bright\b/.test(lower) || /reverse/.test(lower))) ||
+            (q.id === 'vowels' && /\b(aeiou|vowel|aeiou)\b/.test(lower)) ||
+            (q.id === 'fibonacci' && (/\bnext\b/.test(lower) || /\ba\s*\+\s*b\b/.test(lower) || /\bprevious\b/.test(lower)));
+          testsPassed = likelyCorrect ? 3 : (hasLoop && hasCore ? 1 : 0);
+        }
+      }
+
+      const implementation = edited && !hardCoded ? 2 : 0;
+      const controlFlow = hasLoop ? 3 : 0;
+      const coreLogic = hasCore && !hardCoded ? 3 : 0;
+      const output = returnsOutput && !hardCoded ? 2 : 0;
+      let score = implementation + controlFlow + coreLogic + output;
+
+      // Reward passing sample behavior, but cap the final score at 10.
+      if (testsPassed === 3) score = Math.max(score, 9);
+      if (hardCoded) score = Math.min(score, 4);
+
+      const details = [
+        `${implementation}/2 implementation`,
+        `${controlFlow}/3 control flow`,
+        `${coreLogic}/3 core logic`,
+        `${output}/2 output`,
+        `${testsPassed}/3 sample behavior`
+      ];
+      return { score: Math.min(10, score), tests: testsPassed, details, grade: score >= 8 ? 'Strong' : score >= 5 ? 'Partial' : 'Needs Review' };
+    }
+
+    function runJavaScriptTests(q, code) {
+      try {
+        const parameter = q.id === 'sort' || q.id === 'largest' ? 'arr' : q.id === 'fibonacci' ? 'n' : 'text';
+        const functionSource = `function ${q.function}(${parameter}) {\n${code}\n}\nreturn { fn: typeof ${q.function} === 'function' ? ${q.function} : null };`;
+        const fn = new Function(functionSource)().fn;
+        if (!fn) return 0;
+        let passed = 0;
+        if (q.id === 'sort') {
+          const cases = [[[2,4,8,3,1],[1,2,3,4,8]], [[-1,5,0,-3],[-3,-1,0,5]], [[],[]]];
+          for (const [input, expected] of cases) {
+            const actual = fn([...input]);
+            if (Array.isArray(actual) && JSON.stringify(actual) === JSON.stringify(expected)) passed++;
+          }
+        } else if (q.id === 'unique') {
+          const cases = [['programming','progamin'], ['banana','ban'], ['','']];
+          for (const [input, expected] of cases) if (fn(input) === expected) passed++;
+        } else if (q.id === 'largest') {
+          const cases = [[[12,7,25,3,19],25], [[-8,-2,-11],-2], [[6],6]];
+          for (const [input, expected] of cases) if (fn([...input]) === expected) passed++;
+        } else if (q.id === 'palindrome') {
+          const cases = [['level',true], ['coding',false], ['a',true]];
+          for (const [input, expected] of cases) if (fn(input) === expected) passed++;
+        } else if (q.id === 'vowels') {
+          const cases = [['Education',5], ['rhythm',0], ['AEIOU',5]];
+          for (const [input, expected] of cases) if (fn(input) === expected) passed++;
+        } else if (q.id === 'fibonacci') {
+          const cases = [[7,[0,1,1,2,3,5,8]], [1,[0]], [0,[]]];
+          for (const [input, expected] of cases) {
+            const actual = fn(input);
+            if (Array.isArray(actual) && JSON.stringify(actual) === JSON.stringify(expected)) passed++;
+          }
+        }
+        return passed;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    function runSamples() {
+      saveAnswer();
+      const q = selected[active];
+      const record = answers[q.id];
+      const result = evaluateAnswer(q, record);
+      $('runOutput').textContent = result.tests === 3
+        ? `All 3 sample test cases passed. Current diagnostic score: ${result.score}/10.`
+        : `${result.tests} of 3 sample test cases passed. Complete and test the function logic before submission.`;
+      $('runOutput').style.display = 'block';
+    }
+
+    function submitAssessment() {
+      saveAnswer();
+      if (submitted) return;
+
+      const incomplete = selected.filter(q => {
+        const code = answers[q.id]?.code || '';
+        return code.length < 60 || /write your code here|^\s*pass\s*$/.test(code);
+      });
+      if (incomplete.length) {
+        const confirmed = window.confirm(`${incomplete.length} question(s) appear incomplete. Submit anyway?`);
+        if (!confirmed) return;
+      }
+
+      submitted = true;
+      clearInterval(timerId);
+      let total = 0;
+      const breakdown = selected.map((q, index) => {
+        const result = evaluateAnswer(q, answers[q.id]);
+        total += result.score;
+        return { q, index, result };
+      });
+
+      $('submittedName').textContent = `Submitted by ${candidateName}`;
+      $('resultTitle').textContent = 'Candidate Result';
+      $('totalScore').textContent = total;
+      $('grade').textContent = total >= 16 ? 'Excellent' : total >= 12 ? 'Good' : total >= 8 ? 'Fair' : 'Needs Review';
+      $('breakdown').innerHTML = breakdown.map(({q, index, result}) => `
+        <div class="breakdown-item">
+          <div class="breakdown-head"><strong>Q${index + 1} · ${q.title}</strong><strong>${result.score}/10</strong></div>
+          <div class="muted" style="font-size:12px;color:#7e949f;margin-bottom:8px">${result.details.join(' · ')}</div>
+          <div class="breakdown-bar"><div style="width:${result.score * 10}%"></div></div>
+        </div>`).join('');
+      $('resultModal').style.display = 'grid';
+    }
+
+    function startAssessment() {
+      const name = $('candidateName').value.trim().replace(/\s+/g, ' ');
+      if (name.length < 2) {
+        $('nameError').textContent = 'Please enter at least 2 characters.';
+        $('candidateName').focus();
+        return;
+      }
+      candidateName = name;
+      $('candidatePill').textContent = name;
+      $('identityScreen').classList.add('opening');
+      setTimeout(() => {
+        $('identityScreen').style.display = 'none';
+        selected = shuffleQuestions();
+        active = 0;
+        answers = {};
+        startedAt = Date.now();
+        draw();
+        timerId = setInterval(updateTimer, 1000);
+      }, 1700);
+    }
+
+    function updateTimer() {
+      if (submitted) return;
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const remaining = Math.max(0, 15 * 60 - elapsed);
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
+      $('timer').textContent = `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+      $('timer').classList.toggle('warning', remaining <= 300);
+      if (remaining === 0) {
+        clearInterval(timerId);
+        submitAssessment();
+      }
+    }
+
+    $('startBtn').addEventListener('click', startAssessment);
+    $('candidateName').addEventListener('keydown', event => {
+      if (event.key === 'Enter') startAssessment();
+    });
+    $('language').addEventListener('change', changeLanguage);
+    $('hintBtn').addEventListener('click', toggleHint);
+    $('hintSnippet').addEventListener('click', insertHintSnippet);
+    $('runBtn').addEventListener('click', runSamples);
+    $('submitBtn').addEventListener('click', submitAssessment);
+    $('reviewBtn').addEventListener('click', () => $('resultModal').style.display = 'none');
+    $('code').addEventListener('keydown', event => {
+      const editor = $('code');
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        if (start !== end) {
+          const selected = editor.value.slice(start, end);
+          const indented = selected.replace(/^/gm, '    ');
+          editor.setRangeText(indented, start, end, 'select');
+        } else {
+          editor.setRangeText('    ', start, end, 'end');
+        }
+        saveAnswer();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const before = editor.value.slice(0, start);
+        const currentLine = before.slice(before.lastIndexOf('\n') + 1);
+        const indentation = currentLine.match(/^[ \t]*/)?.[0] || '';
+        const extraIndent = /:\s*$/.test(currentLine) ? '    ' : '';
+        editor.setRangeText('\n' + indentation + extraIndent, start, end, 'end');
+        saveAnswer();
+      }
+    });
+  </script>
+</body>
+</html>
