@@ -1,0 +1,16 @@
+{
+  "name": "hpai-question-bank",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Source of truth for the HPAI assessment question bank. Questions live in code, not in the database.",
+  "scripts": {
+    "validate": "node validate.js",
+    "build-bank": "node build.js",
+    "gen-other": "node gen/build.js"
+  },
+  "devDependencies": {
+    "mingo": "^7.2.7",
+    "sql.js": "^1.17.0"
+  }
+}
