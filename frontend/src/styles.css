@@ -466,3 +466,7 @@ select.input { padding-right: 28px; }
 
 /* "Waking up the server…" note (login + invite page) */
 .wake-note { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #fff7e1; color: #7a5200; font-size: 13.5px; text-align: left; }
+
+/* App version label (footer + login card) */
+.app-version { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .2px; }
+.app-version-login { margin: 18px 0 0; text-align: center; }

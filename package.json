@@ -1,5 +1,6 @@
 {
   "name": "hpai-assessment-platform",
+  "version": "1.0.0",
   "private": true,
   "description": "Convenience scripts for the monorepo. Backend, frontend and question-bank each have their own package.json.",
   "scripts": {
