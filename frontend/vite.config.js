@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+// Single source of truth for the displayed version: frontend/package.json (kept in step with the root and backend).
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 // Only the framework is hand-chunked (long-term cacheable). jsPDF, Monaco loader, sql.js, mingo and
 // tree-sitter are reached exclusively through dynamic imports (lazy pages / click handlers), so the
@@ -13,6 +17,7 @@ function manualChunks(id) {
 
 export default defineConfig({
   plugins: [react()],
+  define: { __APP_VERSION__: JSON.stringify(version) },
   server: { port: 5173 },
   build: {
     chunkSizeWarningLimit: 900,
