@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorBox, Field, Spinner, useAsync, useToast } from '../../components/ui.jsx';
 import PaperReview from '../../components/PaperReview.jsx';
+import PeopleInput from '../../components/PeopleInput.jsx';
+import LinksReady from '../../components/LinksReady.jsx';
+import { capMessage, parsePeople } from '../../utils/people.js';
 import { loadBank } from '../../bank/index.js'; // public fields only — answers are sealed and no key is ever released to a proctor
 import {
   LEVELS, MAX_QUESTIONS, availability, bucketize, countsSignature, estimateFromCounts, generatePaper, paperTotals, sortPaper, suggestDuration, toSubjectConfig,
@@ -17,6 +20,17 @@ export default function NewSession() {
   const toast = useToast();
   const subjectsQ = useAsync(() => api.subjects(), []);
   const candQ = useAsync(() => api.proctor.candidates(), []);
+  const limitsQ = useAsync(() => api.proctor.limits().catch(() => ({ max_candidates_per_session: 50 })), []);
+  const cap = limitsQ.data?.max_candidates_per_session || 50;
+
+  // new candidates = separate one-time invite links, generated together with the session
+  const [linkCount, setLinkCount] = useState(10);
+  const [peopleText, setPeopleText] = useState('');
+  const [nameLocked, setNameLocked] = useState(true);
+  const [linkHours, setLinkHours] = useState(24);
+  const [created, setCreated] = useState(null); // { id, name, invites:[…with tokens] } — shown ONCE, kept only in memory
+  const parsed = useMemo(() => parsePeople(peopleText), [peopleText]);
+  const newLinks = parsed.rows.length ? parsed.rows.length : linkCount;
 
   const [stepKey, setStepKey] = useState('basics');
   const [paperType, setPaperType] = useState('same'); // same = one reviewed paper for everyone | random = different random set per candidate
@@ -84,6 +98,9 @@ export default function NewSession() {
     if (key === 'basics') {
       if (!name.trim()) return 'Give the session a name.';
       if (opens && closes && new Date(closes) <= new Date(opens)) return 'Close time must be after the open time.';
+      if (parsed.errors.length) return `Fix ${parsed.errors.length} line${parsed.errors.length === 1 ? '' : 's'} in the names list (or clear it).`;
+      const over = capMessage(cap, chosen.length, newLinks);
+      if (over) return over;
     }
     if (key === 'subjects') {
       if (!subjects.length) return 'You have no subjects assigned. Ask an admin to assign subjects to your account.';
@@ -124,14 +141,29 @@ export default function NewSession() {
       const res = await api.proctor.createSession({
         name: name.trim(), duration_mins: effDuration, subject_config, fixed_question_ids, candidate_ids: chosen,
         opens_at: opens ? new Date(opens).toISOString() : undefined, closes_at: closes ? new Date(closes).toISOString() : undefined,
+        ...(parsed.rows.length
+          ? { people: parsed.rows, name_locked: nameLocked, expires_hours: linkHours }
+          : newLinks > 0 ? { candidate_count: newLinks, expires_hours: linkHours } : {}),
       });
-      toast(chosen.length ? 'Session created' : 'Session created — create invite links from its page to let candidates in', 'success');
       const id = res?.id || res?.session?.id;
-      nav(id ? `/proctor/sessions/${id}` : '/proctor/sessions');
+      const invites = res?.invites || [];
+      toast('Session created', 'success');
+      if (invites.length) setCreated({ id, name: name.trim(), invites }); // tokens are shown once, right here
+      else nav(id ? `/proctor/sessions/${id}` : '/proctor/sessions');
     } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
   };
 
   const onSubmit = (e) => { e.preventDefault(); if (stepKey === 'summary') create(); else next(); };
+
+  if (created) {
+    const to = created.id ? `/proctor/sessions/${created.id}` : '/proctor/sessions';
+    return (
+      <>
+        <div className="page-head"><div><h1>Session created</h1><p>{created.name}</p></div></div>
+        <LinksReady invites={created.invites} sessionName={created.name} doneLabel="Open live board →" onDone={() => nav(to)} />
+      </>
+    );
+  }
 
   if (subjectsQ.loading || candQ.loading) return <Spinner />;
   const bankLoading = needBank && bankQ.loading && !bankQ.data;
@@ -162,7 +194,7 @@ export default function NewSession() {
         <div className="stack">
           <Card title={<span ref={headRef} tabIndex={-1} style={{ outline: 'none' }}>{`${idx + 1} · ${LABELS[stepKey]}`}</span>}
             subtitle={{
-              basics: 'Name the session and (optionally) pick candidates. You can also skip candidates and share one-time invite links afterwards.',
+              basics: 'Name the session and choose how many candidates will take it — each gets their own one-time link.',
               subjects: 'Choose how many questions you want from each of your subjects, and how the paper is formed.',
               review: 'These are the questions the system picked. Keep what you like, swap or replace the rest.',
               time: 'The duration is worked out from the questions you finalised. Adjust it if you like.',
@@ -176,10 +208,18 @@ export default function NewSession() {
                   <Field label="Opens at (optional)"><input className="input" type="datetime-local" value={opens} onChange={(e) => setOpens(e.target.value)} /></Field>
                   <Field label="Closes at (optional)"><input className="input" type="datetime-local" value={closes} onChange={(e) => setCloses(e.target.value)} /></Field>
                 </div>
-                <div>
-                  <strong>Candidates <span className="muted small">(optional · {chosen.length} selected of {candidates.length})</span></strong>
-                  <p className="muted small" style={{ margin: '4px 0 10px' }}>Invite-only sessions are fine: skip this and share one-time invite links from the session page after creating it.</p>
-                  {candidates.length === 0 ? <EmptyState title="No candidates yet" hint="No problem — create the session and share one-time invite links, or add candidates first."><Link to="/proctor/candidates" className="btn btn-ghost btn-sm">Go to candidates</Link></EmptyState> : (
+                <div className="stack">
+                  <div>
+                    <strong>Candidates</strong>
+                    <p className="muted small" style={{ margin: '4px 0 10px' }}>Choose how many people will take this test. When you create the session, a <b>separate one-time link</b> (with its own Tester ID) is generated for each of them, so many candidates can test at the same time. Set 0 to add links later.</p>
+                    <PeopleInput count={linkCount} setCount={setLinkCount} text={peopleText} setText={setPeopleText} parsed={parsed} max={Math.max(1, cap - chosen.length)}
+                      locked={nameLocked} setLocked={setNameLocked} hours={linkHours} setHours={setLinkHours} />
+                    {chosen.length > 0 && <p className="muted small" style={{ marginTop: 8 }}>{chosen.length} existing account{chosen.length === 1 ? '' : 's'} also count towards the limit of {cap}.</p>}
+                  </div>
+                  <details open={chosen.length > 0}>
+                  <summary style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--navy)' }}>Or pick existing candidate accounts <span className="muted small">(optional · {chosen.length} selected of {candidates.length})</span></summary>
+                  <p className="muted small" style={{ margin: '8px 0 10px' }}>Existing accounts sign in with their own email and password instead of a link.</p>
+                  {candidates.length === 0 ?<EmptyState title="No candidates yet" hint="No problem — create the session and share one-time invite links, or add candidates first."><Link to="/proctor/candidates" className="btn btn-ghost btn-sm">Go to candidates</Link></EmptyState> : (
                     <div className="stack">
                       <div className="row"><input className="input search grow" type="search" placeholder="Search candidates…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search candidates" />
                         <Button type="button" size="sm" variant="ghost" onClick={() => setChosen((s) => (allShown ? s.filter((id) => !shown.some((c) => c.id === id)) : [...new Set([...s, ...shown.map((c) => c.id)])]))}>{allShown ? 'Clear shown' : 'Select all shown'}</Button></div>
@@ -188,6 +228,7 @@ export default function NewSession() {
                       ))}{shown.length === 0 && <p className="muted small" style={{ padding: 14 }}>No matches.</p>}</div>
                     </div>
                   )}
+                  </details>
                 </div>
               </div>
             )}
@@ -276,7 +317,8 @@ export default function NewSession() {
                   <dt>Questions</dt><dd>{totals.questions}{!same ? ' per candidate' : ''}</dd>
                   <dt>Total marks</dt><dd>{totals.marks}{!same ? ' (approx.)' : ''}</dd>
                   <dt>Duration</dt><dd><b>{effDuration} min</b></dd>
-                  <dt>Candidates</dt><dd>{chosen.length ? `${chosen.length} selected` : 'None yet — create one-time invite links from the session page'}</dd>
+                  <dt>Candidates</dt><dd>{newLinks + chosen.length === 0 ? 'None yet — add one-time links later from the session page' : [newLinks ? `${newLinks} new one-time link${newLinks === 1 ? '' : 's'}${parsed.rows.length ? (nameLocked ? ' (names locked)' : ' (names prefilled)') : ''}` : '', chosen.length ? `${chosen.length} existing account${chosen.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' + ')}</dd>
+                  {newLinks > 0 && <><dt>Links valid for</dt><dd>{linkHours >= 24 && linkHours % 24 === 0 ? `${linkHours / 24} day${linkHours === 24 ? '' : 's'}` : `${linkHours} hour${linkHours === 1 ? '' : 's'}`}</dd></>}
                   {(opens || closes) && <><dt>Window</dt><dd>{opens ? new Date(opens).toLocaleString() : 'any time'} → {closes ? new Date(closes).toLocaleString() : 'no end'}</dd></>}
                 </dl>
                 {same ? (
@@ -312,7 +354,7 @@ export default function NewSession() {
               <dt>Questions</dt><dd>{totals.questions || (countTotal ? countTotal : '—')}</dd>
               <dt>Total marks</dt><dd>{totals.marks || '—'}</dd>
               <dt>Duration</dt><dd>{['time', 'summary'].includes(stepKey) || flow.indexOf(stepKey) > flow.indexOf('time') ? `${effDuration} min` : <span className="muted">set after questions</span>}</dd>
-              <dt>Candidates</dt><dd>{chosen.length}</dd>
+              <dt>Candidates</dt><dd>{newLinks + chosen.length}<span className="muted small"> / {cap} max</span></dd>
             </dl>
             {same && locked.size > 0 && <p className="muted small" style={{ marginTop: 10 }}><Badge tone="green">{locked.size} kept</Badge></p>}
           </Card>

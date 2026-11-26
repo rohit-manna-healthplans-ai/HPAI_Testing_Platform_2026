@@ -463,3 +463,6 @@ select.input { padding-right: 28px; }
 .login-screen > main { width: 100%; display: grid; place-items: center; }
 .score-ring .score-big { font-size: clamp(30px, 11vw, 42px); }
 .score-ring .score-big small { font-size: clamp(14px, 4.5vw, 18px); }
+
+/* "Waking up the server…" note (login + invite page) */
+.wake-note { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #fff7e1; color: #7a5200; font-size: 13.5px; text-align: left; }

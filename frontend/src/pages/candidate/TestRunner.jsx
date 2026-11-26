@@ -12,9 +12,16 @@ import { short } from '../../runners/compare.js';
 import {
   useProctoring, MAX_SCREEN_LEAVES, leaveWarningText, leaveLimitReason, submitReasonKey, clearProctoringFlags,
 } from '../../utils/proctoring.js';
+import { dropQueue, flushEvents } from '../../utils/eventQueue.js';
 import './test.css';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Free-tier friendly saving: ONE batched PUT (<= 20 answers) every 45-60 s (+ up to 10 s jitter on the first tick), dirty answers only.
+const SAVE_MIN_MS = 45000;
+const SAVE_SPAN_MS = 15000;
+const SYNC_EVERY_MS = 5 * 60 * 1000; // timer re-sync when no save has refreshed the server clock (e.g. proctor extended the time)
+const MAX_PER_SAVE = 20;
+const hashPayload = (p) => JSON.stringify([p.response, p.tests_passed, p.tests_total]); // time_spent excluded: it changes every second
 const TYPE_LABEL = { coding: 'Coding', sql: 'SQL', nosql: 'NoSQL', ui: 'Quick Dev', mcq: 'MCQ' };
 const MIN_RUN_GAP_MS = 1000; // debounce for rapid Run clicks
 
@@ -90,6 +97,11 @@ export default function TestRunner() {
   const reasonRef = useRef(null);
   const persistTimer = useRef(null);
   const lastRunRef = useRef(0);
+  const pendingRef = useRef(new Map()); // qid -> graded payload waiting for the next batched save
+  const sentHashRef = useRef({}); // qid -> hash of the payload the server already has
+  const failRef = useRef(0); // consecutive failed saves (exponential backoff)
+  const retryTimer = useRef(null);
+  const lastClockRef = useRef(Date.now()); // last time the server clock/ends_at was refreshed
 
   activeRef.current = active;
   questionsRef.current = questions;
@@ -125,6 +137,7 @@ export default function TestRunner() {
         const a = answers[q.id];
         if (a?.response) {
           cacheRef.current[q.id] = { question_id: q.id, response: a.response, tests_passed: a.tests_passed ?? 0, tests_total: a.tests_total || totalTests(q, a.response.language), time_spent_sec: a.time_spent_sec || 0 };
+          sentHashRef.current[q.id] = hashPayload(cacheRef.current[q.id]); // the server already has exactly this
           timeRef.current[q.id] = a.time_spent_sec || 0;
         }
         let draft = fromResponse(q, a?.response || defaultResponse(q));
@@ -216,9 +229,10 @@ export default function TestRunner() {
     if (!res) return;
     if (res.server_now) offsetRef.current = new Date(res.server_now).getTime() - Date.now();
     if (res.ends_at) endsAtRef.current = new Date(res.ends_at).getTime();
+    lastClockRef.current = Date.now();
   };
 
-  /** grade + PUT one dirty question (queued, serial). */
+  /** Grade one dirty question IN THE BROWSER (queued, serial) and park the payload for the next batched save. No network. */
   const flush = (q) => enqueue(async () => {
     if (submittedRef.current || !dirtyRef.current.has(q.id)) return;
     const response = toResponse(q, draftsRef.current[q.id]);
@@ -227,15 +241,50 @@ export default function TestRunner() {
     setSave(q.id, 'saving');
     try {
       const p = await gradeQuestion(q);
-      const res = await api.candidate.saveAnswer(attemptId, q.id, { response: p.response, tests_passed: p.tests_passed, tests_total: p.tests_total, time_spent_sec: p.time_spent_sec });
-      applyServerClock(res);
-      if (regradeRef.current[q.id]) dirtyRef.current.add(q.id); // code is saved; grade again on the next autosave
-      setSave(q.id, dirtyRef.current.has(q.id) ? 'dirty' : 'saved');
-    } catch (e) {
+      if (hashPayload(p) === sentHashRef.current[q.id]) { pendingRef.current.delete(q.id); setSave(q.id, 'saved'); } // unchanged vs. what the server has
+      else { pendingRef.current.set(q.id, p); setSave(q.id, 'queued'); }
+      if (regradeRef.current[q.id]) dirtyRef.current.add(q.id); // grading failed transiently; grade again on the next tick
+      if (dirtyRef.current.has(q.id)) setSave(q.id, 'dirty');
+    } catch {
       dirtyRef.current.add(q.id);
       setSave(q.id, 'error');
-      if (e.status === 409) navigate(`/result/${attemptId}`, { replace: true });
     }
+  });
+
+  /** exponential backoff with jitter (2 s, 4 s, 8 s ... 30 s, +-30 %) after a failed save */
+  const scheduleRetry = () => {
+    if (retryTimer.current || submittedRef.current) return;
+    const base = Math.min(30000, 2000 * 2 ** Math.min(failRef.current, 4));
+    failRef.current += 1;
+    retryTimer.current = setTimeout(() => { retryTimer.current = null; sendPending(); }, base * (0.7 + Math.random() * 0.6));
+  };
+
+  /** Send every parked payload in ONE request (<= 20 per call); unchanged ones are skipped. Returns false on failure. */
+  const sendPending = () => enqueue(async () => {
+    if (submittedRef.current) return true;
+    const entries = [...pendingRef.current.entries()].filter(([id, p]) => hashPayload(p) !== sentHashRef.current[id]);
+    pendingRef.current = new Map(entries);
+    for (let i = 0; i < entries.length; i += MAX_PER_SAVE) {
+      const part = entries.slice(i, i + MAX_PER_SAVE);
+      const answers = part.map(([id, p]) => ({ ...p, time_spent_sec: Math.round(timeRef.current[id] ?? p.time_spent_sec ?? 0) }));
+      try {
+        const res = await api.candidate.saveAnswers(attemptId, answers);
+        applyServerClock(res);
+        part.forEach(([id, p]) => {
+          sentHashRef.current[id] = hashPayload(p);
+          pendingRef.current.delete(id);
+          setSave(id, dirtyRef.current.has(id) ? 'dirty' : 'saved');
+        });
+        failRef.current = 0;
+      } catch (e) {
+        if (e.status === 409) { navigate(`/result/${attemptId}`, { replace: true }); return false; }
+        part.forEach(([id]) => setSave(id, 'error'));
+        if (e.retryAfter) failRef.current = Math.max(failRef.current, Math.min(4, Math.ceil(Math.log2(e.retryAfter / 2))));
+        scheduleRetry();
+        return false;
+      }
+    }
+    return true;
   });
 
   // ---- navigation -----------------------------------------------------------------------------
@@ -255,7 +304,8 @@ export default function TestRunner() {
     if (!q) return;
     dirtyRef.current.add(q.id);
     await flush(q);
-    flash('Saved');
+    const ok = await sendPending(); // explicit "Save" press: send the parked answers now (nothing is sent when nothing changed)
+    flash(ok ? 'Saved' : 'Saved on this device — will sync when the connection is back');
   };
 
   // ---- run (visible tests only) ---------------------------------------------------------------
@@ -290,17 +340,58 @@ export default function TestRunner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leaves, phase]);
 
-  // ---- autosave every 30s ---------------------------------------------------------------------
+  // ---- batched autosave: one request per 45-60 s (jittered), dirty answers only --------------------
   useEffect(() => {
     if (phase !== 'test') return undefined;
-    const id = setInterval(() => {
-      if (submitLock.current) return;
-      commitTime();
-      questionsRef.current.forEach((q) => { if (dirtyRef.current.has(q.id)) flush(q); });
-    }, 30000);
+    let t;
+    let alive = true;
+    const next = (first) => { t = setTimeout(tick, SAVE_MIN_MS + Math.random() * SAVE_SPAN_MS + (first ? Math.random() * 10000 : 0)); };
+    const tick = async () => {
+      if (!alive) return;
+      if (!submitLock.current) {
+        commitTime();
+        for (const q of questionsRef.current) { if (dirtyRef.current.has(q.id)) await flush(q); }
+        await sendPending();
+      }
+      if (alive) next(false);
+    };
+    next(true);
+    return () => { alive = false; clearTimeout(t); clearTimeout(retryTimer.current); retryTimer.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // timer re-sync (~5 min): saves already refresh the server clock, so only call when none did (e.g. nothing was edited and
+  // the proctor extended the time). Reads ends_at/server_now only.
+  useEffect(() => {
+    if (phase !== 'test') return undefined;
+    const id = setInterval(async () => {
+      if (submitLock.current || submittedRef.current || Date.now() - lastClockRef.current < SYNC_EVERY_MS - 20000) return;
+      try {
+        const d = await api.candidate.attempt(attemptId);
+        if (d.attempt?.status && d.attempt.status !== 'in_progress') { submittedRef.current = true; navigate(`/result/${attemptId}`, { replace: true }); return; }
+        applyServerClock({ server_now: d.server_now, ends_at: d.attempt?.ends_at });
+      } catch { /* try again next time */ }
+    }, SYNC_EVERY_MS);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
+
+  // when the page is hidden/closed, push whatever is already graded with keepalive (no extra grading, nothing if nothing is pending)
+  useEffect(() => {
+    if (phase !== 'test') return undefined;
+    const push = () => {
+      if (submittedRef.current) return;
+      const answers = [...pendingRef.current.entries()].filter(([id, p]) => hashPayload(p) !== sentHashRef.current[id]).slice(0, MAX_PER_SAVE)
+        .map(([id, p]) => ({ ...p, time_spent_sec: Math.round(timeRef.current[id] ?? p.time_spent_sec ?? 0) }));
+      if (answers.length) api.candidate.saveAnswers(attemptId, answers, { keepalive: true }).catch(() => {});
+    };
+    const onVis = () => { if (document.hidden) push(); };
+    window.addEventListener('pagehide', push);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { window.removeEventListener('pagehide', push); document.removeEventListener('visibilitychange', onVis); };
+  }, [phase, attemptId]);
+
+  useEffect(() => () => { flushEvents(attemptId, { keepalive: true }); dropQueue(attemptId); }, [attemptId]);
 
   // warn before leaving mid-test
   useEffect(() => {
@@ -341,6 +432,7 @@ export default function TestRunner() {
     autoRef.current = auto;
     reasonRef.current = reason;
     setConfirmOpen(false);
+    flushEvents(attemptId); // integrity events first (fire-and-forget); the submit below carries every graded answer
     commitTime();
     const qs = questionsRef.current;
     const toGrade = qs.filter((x) => (dirtyRef.current.has(x.id) || !cacheRef.current[x.id])
@@ -673,7 +765,7 @@ export default function TestRunner() {
 
 // ---------------------------------------------------------------------------------------------
 function SaveBadge({ state }) {
-  const map = { saved: ['ok', 'Saved ✓'], saving: ['', 'Saving…'], dirty: ['', 'Unsaved changes'], error: ['bad', 'Save failed – retrying'] };
+  const map = { saved: ['ok', 'Saved ✓'], queued: ['ok', 'Saved ✓ · syncing'], saving: ['', 'Saving…'], dirty: ['', 'Unsaved changes'], error: ['bad', 'Save failed – retrying'] };
   const m = map[state];
   return m ? <span className={`tr-save ${m[0]}`}>{m[1]}</span> : <span className="tr-save" />;
 }
