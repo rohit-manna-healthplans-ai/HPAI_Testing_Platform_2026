@@ -8,21 +8,42 @@ export const auth = {
   clear() { localStorage.removeItem('hpai_token'); localStorage.removeItem('hpai_user'); },
 };
 
-export async function request(method, path, body) {
+/**
+ * opts: { keepalive } -> survive page unload (body must stay < 64 KB, else we fall back to a normal fetch);
+ *       { etag }      -> conditional GET: sends If-None-Match and resolves { notModified:true } on 304, else { data, etag }.
+ */
+export async function request(method, path, body, opts = {}) {
+  const init = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+      ...(opts.etag ? { 'If-None-Match': opts.etag } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  };
   let res;
   try {
-    res = await fetch(`${API_URL}/api${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    try {
+      res = await fetch(`${API_URL}/api${path}`, opts.keepalive ? { ...init, keepalive: true } : init);
+    } catch (e) {
+      if (!opts.keepalive) throw e;
+      res = await fetch(`${API_URL}/api${path}`, init); // keepalive refused (e.g. body too large): plain fetch
+    }
   } catch {
     throw new Error('Cannot reach server. Check your connection and try again.');
   }
+  if (res.status === 304) return { notModified: true };
   let data = null;
   try { data = await res.json(); } catch { /* empty body */ }
   if (res.status === 401 && auth.token) { auth.clear(); window.location.href = '/login'; }
-  if (!res.ok) { const err = new Error(data?.error || `Request failed (${res.status})`); err.status = res.status; throw err; }
+  if (!res.ok) {
+    const err = new Error(data?.error || `Request failed (${res.status})`);
+    err.status = res.status;
+    const ra = Number(res.headers.get('Retry-After')); if (ra > 0) err.retryAfter = ra;
+    throw err;
+  }
+  if (opts.etag !== undefined) return { data, etag: res.headers.get('ETag') || null };
   return data;
 }
 
@@ -68,6 +89,10 @@ export const api = {
     extend: (id, minutes, reason) => post(`/proctor/attempts/${id}/extend`, { minutes, reason }),
     terminate: (id, reason) => post(`/proctor/attempts/${id}/terminate`, { reason }),
     monitor: () => get('/proctor/monitor'),
+    limits: () => get('/proctor/limits'),
+    // live board: conditional GET (If-None-Match). Resolves { notModified:true } or { data, etag }.
+    live: (sessionId, etag) => request('GET', `/proctor/sessions/${sessionId}/live`, undefined, { etag: etag || '' }),
+    bulk: (sessionId, b) => post(`/proctor/sessions/${sessionId}/bulk`, b),
     // one-time invite links
     createInvites: (sessionId, b) => post(`/proctor/sessions/${sessionId}/invites`, b),
     invites: (sessionId) => get(`/proctor/sessions/${sessionId}/invites`),
@@ -85,7 +110,10 @@ export const api = {
     start: (sessionId) => post(`/candidate/sessions/${sessionId}/start`),
     attempt: (id) => get(`/candidate/attempts/${id}`),
     saveAnswer: (attemptId, questionId, b) => put(`/candidate/attempts/${attemptId}/answers/${questionId}`, b),
+    // ONE request for up to 20 dirty answers (the test page uses this; the single-answer route is kept for compatibility)
+    saveAnswers: (attemptId, answers, opts) => request('PUT', `/candidate/attempts/${attemptId}/answers`, { answers }, opts),
     event: (attemptId, type, meta) => post(`/candidate/attempts/${attemptId}/events`, { type, meta }),
+    eventsBatch: (attemptId, events, opts) => request('POST', `/candidate/attempts/${attemptId}/events/batch`, { events }, opts),
     submit: (attemptId, b) => post(`/candidate/attempts/${attemptId}/submit`, b ?? {}),
     result: (attemptId) => get(`/candidate/attempts/${attemptId}/result`),
   },

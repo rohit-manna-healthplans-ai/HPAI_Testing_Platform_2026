@@ -21,6 +21,8 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, cb) => (!origin || origins.includes('*') || origins.includes(origin) ? cb(null, true) : cb(new Error('Not allowed by CORS'))),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  exposedHeaders: ['ETag'], // cross-origin (Vercel -> Render) fetch can only read ETag if it is exposed; needed for 304 polling
+  maxAge: 600, // cache preflights (If-None-Match / Authorization) for 10 min -> fewer OPTIONS requests on the free instance
 }));
 // gzip at level 1: cheap on the 0.1 vCPU free instance, still shrinks JSON a lot. Tiny bodies (<1 KB) are left alone.
 app.use(compression({ level: 1, threshold: 1024 }));
