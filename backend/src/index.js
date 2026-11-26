@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { countRequests } from './metrics.js';
-import { query } from './db.js';
+import { query, getPool } from './db.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import proctorRoutes from './routes/proctor.js';
@@ -64,8 +64,52 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: status >= 500 ? 'Something went wrong on the server' : err.message });
 });
 
+/**
+ * Process safety net (single free-tier instance, candidates may be mid-test):
+ * - a stray unhandled rejection / uncaught exception is logged instead of killing the server;
+ * - if it keeps happening (10+ in a minute) we exit so the platform restarts a clean instance;
+ * - SIGTERM/SIGINT (every Render deploy) drain in-flight requests and close the DB pool before exiting.
+ */
+function installProcessGuards(server) {
+  const recent = [];
+  const note = (kind, e) => {
+    console.error(`[${kind}]`, e?.stack || e);
+    const now = Date.now();
+    recent.push(now);
+    while (recent.length && now - recent[0] > 60_000) recent.shift();
+    if (recent.length >= 10) {
+      console.error('Too many unexpected errors in one minute - exiting so the platform restarts a clean instance.');
+      process.exit(1);
+    }
+  };
+  process.on('unhandledRejection', (e) => note('unhandledRejection', e));
+  process.on('uncaughtException', (e) => note('uncaughtException', e));
+
+  let closing = false;
+  const shutdown = (signal) => {
+    if (closing) return;
+    closing = true;
+    console.log(`${signal} received - draining requests and closing the database pool`);
+    const force = setTimeout(() => process.exit(0), 10_000);
+    force.unref();
+    server.close(() => { getPool().end().catch(() => {}).finally(() => process.exit(0)); });
+    server.closeIdleConnections?.();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
 const port = process.env.PORT || 4000;
 if (!process.env.VITEST) {
-  app.listen(port, () => console.log(`HPAI API listening on :${port}`));
+  const server = app.listen(port, () => console.log(`HPAI API listening on :${port}`));
+  // Node closes idle keep-alive sockets after 5 s by default. A browser that reuses such a socket for a POST gets
+  // ERR_CONNECTION_RESET (and proxies such as Render's answer 502). Keep sockets open longer than any proxy idle timeout.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+  server.on('error', (e) => {
+    console.error(e.code === 'EADDRINUSE' ? `Port ${port} is already in use - stop the other backend first.` : e);
+    process.exit(1);
+  });
+  installProcessGuards(server);
 }
 export default app;

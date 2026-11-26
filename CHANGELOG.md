@@ -3,6 +3,14 @@
 All notable changes to the HPAI Assessment Platform. Versions follow [Semantic Versioning](https://semver.org/).
 The version is shown in the app (login card and footer) and returned by `GET /api/health`.
 
+## Unreleased
+
+- **Fix:** `ERR_CONNECTION_RESET` / 502 on POST requests sent over an idle keep-alive connection (e.g. creating a session
+  after a long time in the wizard). The API now keeps sockets open for 65 s (longer than proxy idle timeouts).
+- **Reliability:** stray unhandled rejections / uncaught exceptions are logged instead of crashing the server
+  (exits only after 10+ in a minute so the platform can restart a clean instance); graceful shutdown on SIGTERM/SIGINT
+  drains in-flight requests and closes the database pool during deploys.
+
 ## v1.0.0 - 26-11-2026
 
 First release.
