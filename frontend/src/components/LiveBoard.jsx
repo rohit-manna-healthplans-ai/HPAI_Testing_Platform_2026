@@ -197,7 +197,8 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
   const [sel, setSel] = useState(() => new Set());
   const [tick, setTick] = useState(0); // 30 s: re-evaluate time-based highlights ("idle 5 min") without re-rendering every second
   const [extend, setExtend] = useState(null); // { ids|null, count, label }
-  const [confirm, setConfirm] = useState(null); // { kind:'revoke_unused'|'regen_unused'|'close'|'revoke'|'reissue', row?, count? }
+  const [confirm, setConfirm] = useState(null); // { kind:'revoke_unused'|'regen_unused'|'close'|'revoke'|'reissue'|'remove'|'remove_inactive', row?, count? }
+  const [showGone, setShowGone] = useState(false); // revoked / expired links are hidden by default (they only clutter the board)
   const [adding, setAdding] = useState(false);
   const [links, setLinks] = useState(null); // { title, invites }
 
@@ -215,9 +216,13 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
   const avg = submittedRows.length ? submittedRows.reduce((s, r) => s + Number(r.percentage || 0), 0) / submittedRows.length : 0;
   const already = Math.max(0, counts.total - counts.expired - counts.revoked);
   const closed = data?.session?.status === 'closed';
+  const isGone = (r) => r.status === 'expired' || r.status === 'revoked';
+  const goneCount = rows.filter((r) => r.invite_id && isGone(r)).length; // never-used dead links = the ones that can be removed
+  const goneShown = showGone || filter === 'gone';
 
   const matches = (r) => {
-    if (filter === 'gone') { if (r.status !== 'expired' && r.status !== 'revoked') return false; }
+    if (isGone(r) && !goneShown) return false; // hidden unless the toggle is on or the 'Expired / revoked' chip is selected
+    if (filter === 'gone') { if (!isGone(r)) return false; }
     else if (filter === 'attn') { if (!r._attn.length) return false; }
     else if (filter !== 'all' && r.status !== filter) return false;
     const t = q.trim().toLowerCase();
@@ -227,7 +232,7 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
     const list = withAttn.filter(matches);
     const cmp = SORTERS[sort.key] || SORTERS.status;
     return list.sort((a, b) => sort.dir * cmp(a, b) || String(a.name || '').localeCompare(String(b.name || '')));
-  }, [withAttn, filter, q, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [withAttn, filter, q, sort, showGone]); // eslint-disable-line react-hooks/exhaustive-deps
   const pages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
   const pageRows = view.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   useEffect(() => { if (page > pages - 1) setPage(0); }, [pages, page]);
@@ -259,6 +264,15 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
       else if (c.kind === 'regen_unused') { const r = await api.proctor.bulk(sessionId, { action: 'regenerate_unused' }); setLinks({ title: 'New links', invites: r.invites || [] }); toast(`${r.affected ?? (r.invites || []).length} link(s) regenerated`, 'success'); }
       else if (c.kind === 'close') { await api.proctor.bulk(sessionId, { action: 'close' }); toast('Session closed', 'success'); }
       else if (c.kind === 'revoke') { await api.proctor.revokeInvite(c.row.invite_id); toast('Link revoked', 'success'); }
+      else if (c.kind === 'remove') {
+        await api.proctor.removeInvite(c.row.invite_id);
+        setSel((s) => { const n = new Set(s); n.delete(rowKey(c.row)); return n; });
+        toast(`Link ${c.row.tester_id} removed`, 'success');
+      } else if (c.kind === 'remove_inactive') {
+        const r = await api.proctor.removeInactiveInvites(sessionId);
+        setSel((s) => { const n = new Set(s); rows.filter(isGone).forEach((x) => n.delete(rowKey(x))); return n; });
+        toast(`${r.affected ?? 0} revoked / expired link${r.affected === 1 ? '' : 's'} removed`, 'success');
+      }
       else if (c.kind === 'reissue') { const r = await api.proctor.reissueInvite(c.row.invite_id, { expires_hours: 24 }); setLinks({ title: c.row.status === 'in_progress' ? 'Resume link' : 'New link', invites: [r.invite] }); }
       changed();
     } catch (e) { toast(e.message, 'error'); }
@@ -294,6 +308,12 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
             <b><CountUp value={c.n} duration={500} /></b><span>{c.label}</span>
           </button>
         ))}
+        {goneCount > 0 && filter !== 'gone' && (
+          <button type="button" className="board-chip tone-gray board-toggle" aria-pressed={showGone} onClick={() => setShowGone((v) => !v)}
+            title="Revoked and expired links are hidden by default to keep the board tidy">
+            <b>{showGone ? '−' : '+'}</b><span>{showGone ? 'Hide' : 'Show'} revoked / expired ({goneCount})</span>
+          </button>
+        )}
         <button type="button" className={`board-chip tone-amber attn ${attnCount ? 'on' : ''}`} aria-pressed={filter === 'attn'} onClick={() => setFilter(filter === 'attn' ? 'all' : 'attn')} title="Stuck links, idle candidates, repeated leaves or flags">
           <b><CountUp value={attnCount} duration={500} /></b><span>Needs attention</span>
         </button>
@@ -317,12 +337,14 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
           <Button size="sm" onClick={() => askExtend(selInProg.length ? selInProg : null)} disabled={!inProg.length}>⏱ Extend time{selInProg.length ? ` (${selInProg.length} selected)` : ' (all in progress)'}</Button>
           <Button size="sm" variant="ghost" disabled={!unusedRows.length} onClick={() => setConfirm({ kind: 'revoke_unused', count: unusedRows.length })}>Revoke unused links ({unusedRows.length})</Button>
           <Button size="sm" variant="ghost" disabled={!unusedRows.length || closed} onClick={() => setConfirm({ kind: 'regen_unused', count: unusedRows.length })}>Regenerate unused ({unusedRows.length})</Button>
+          <Button size="sm" variant="ghost" disabled={!goneCount} onClick={() => setConfirm({ kind: 'remove_inactive', count: goneCount })}
+            title="Permanently delete revoked and expired links that were never used">Remove revoked &amp; expired links ({goneCount})</Button>
           <Button size="sm" variant="danger" disabled={closed} onClick={() => setConfirm({ kind: 'close' })}>Close session</Button>
           {sel.size > 0 && <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button>}
         </div>
 
         {view.length === 0 ? (
-          <EmptyState title={rows.length ? 'No candidates match' : 'No candidates yet'} hint={rows.length ? 'Try another filter or search.' : 'Use “Add links” to generate one-time links for your candidates.'} />
+          <EmptyState title={rows.length ? 'No candidates match' : 'No candidates yet'} hint={rows.length ? (!goneShown && rows.some(isGone) ? 'Revoked / expired links are hidden. Use “Show revoked / expired” above to see them.' : 'Try another filter or search.') : 'Use “Add links” to generate one-time links for your candidates.'} />
         ) : (
           <div className="table-scroll"><table className="table stackable board-table">
             <thead><tr>
@@ -350,6 +372,7 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
                     {r.status === 'in_progress' && r.invite_id && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'reissue', row: r })}>Resume link</Button>}
                     {(r.status === 'not_opened' || r.status === 'opened') && r.invite_id && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'revoke', row: r })}>Revoke</Button>}
                     {['not_opened', 'opened', 'expired', 'revoked'].includes(r.status) && r.invite_id && !closed && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'reissue', row: r })}>Reissue</Button>}
+                    {isGone(r) && r.invite_id && <Button size="sm" variant="ghost" aria-label={`Remove link ${r.tester_id}`} onClick={() => setConfirm({ kind: 'remove', row: r })}>Remove</Button>}
                   </div></td>
                 </tr>
               );
@@ -358,7 +381,7 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
         )}
 
         <div className="board-pager">
-          <span className="muted small">{view.length} of {rows.length} candidate{rows.length === 1 ? '' : 's'}{pages > 1 ? ` · page ${page + 1} of ${pages}` : ''}</span>
+          <span className="muted small">{view.length} of {goneShown ? rows.length : rows.length - rows.filter(isGone).length} candidate{rows.length === 1 ? '' : 's'}{pages > 1 ? ` · page ${page + 1} of ${pages}` : ''}{!goneShown && rows.some(isGone) ? ` · ${rows.filter(isGone).length} revoked / expired hidden` : ''}</span>
           {pages > 1 && <div className="row"><Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← Prev</Button><Button size="sm" variant="ghost" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>Next →</Button></div>}
         </div>
       </Card>
@@ -368,9 +391,11 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
       <Modal open={!!links} wide title={links?.title || 'Links'} onClose={() => setLinks(null)}>
         {links && <LinksReady invites={links.invites} title="Links ready" sessionName={sessionName} onDone={() => setLinks(null)} />}
       </Modal>
-      <ConfirmDialog open={!!confirm} danger={['revoke_unused', 'close', 'revoke'].includes(confirm?.kind)}
-        title={{ revoke_unused: 'Revoke all unused links?', regen_unused: 'Regenerate unused links?', close: 'Close this session?', revoke: 'Revoke this link?', reissue: confirm?.row?.status === 'in_progress' ? 'Create a resume link?' : 'Reissue this link?' }[confirm?.kind] || 'Are you sure?'}
+      <ConfirmDialog open={!!confirm} danger={['revoke_unused', 'close', 'revoke', 'remove', 'remove_inactive'].includes(confirm?.kind)}
+        title={{ revoke_unused: 'Revoke all unused links?', regen_unused: 'Regenerate unused links?', close: 'Close this session?', revoke: 'Revoke this link?', remove: 'Remove this link permanently?', remove_inactive: 'Remove all revoked & expired links?', reissue: confirm?.row?.status === 'in_progress' ? 'Create a resume link?' : 'Reissue this link?' }[confirm?.kind] || 'Are you sure?'}
         message={{
+          remove: `${confirm?.row?.tester_id}: its tester ID will disappear from this session. This cannot be undone.`,
+          remove_inactive: `${confirm?.count} revoked / expired link${confirm?.count === 1 ? '' : 's'} that nobody ever used will be deleted permanently. Links that were used and all test results are not touched.`,
           revoke_unused: `${confirm?.count} link(s) that nobody has started will stop working immediately.`,
           regen_unused: `${confirm?.count} unused link(s) are cancelled and replaced by new ones with the same Tester IDs. You will see the new links once.`,
           close: 'Candidates who have not started will no longer be able to begin. Running attempts continue until their timer ends.',
@@ -379,7 +404,7 @@ export default function LiveBoard({ sessionId, sessionName, onReview, onSessionC
             ? `${confirm?.row?.tester_id} already started. A one-time resume link lets the same candidate continue the SAME test (timer unchanged) if they lost their browser session.`
             : `${confirm?.row?.tester_id}: a new one-time link with the same Tester ID is created and the old one is cancelled.`,
         }[confirm?.kind]}
-        confirmLabel={{ revoke_unused: 'Revoke all', regen_unused: 'Regenerate', close: 'Close session', revoke: 'Revoke', reissue: 'Create new link' }[confirm?.kind] || 'Confirm'}
+        confirmLabel={{ revoke_unused: 'Revoke all', regen_unused: 'Regenerate', close: 'Close session', revoke: 'Revoke', remove: 'Remove link', remove_inactive: 'Remove all', reissue: 'Create new link' }[confirm?.kind] || 'Confirm'}
         onCancel={() => setConfirm(null)} onConfirm={runConfirm} />
     </div>
   );

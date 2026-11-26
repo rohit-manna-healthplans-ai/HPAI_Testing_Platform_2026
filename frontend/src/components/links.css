@@ -62,3 +62,8 @@ a.btn.btn-sm { display: inline-flex; align-items: center; text-decoration: none;
   .board-chip, .board-chip:hover { transition: none; transform: none; }
   .live-dot, .board-chip.attn.on { animation: none; }
 }
+
+/* Toggle chip: reveal / hide revoked & expired links */
+.board-chip.board-toggle { border-style: dashed; min-width: 0; align-content: center; }
+.board-chip.board-toggle b { font-size: 18px; color: var(--muted, #5f7886); }
+.board-chip.board-toggle span { text-transform: none; letter-spacing: 0; font-size: 12px; }
