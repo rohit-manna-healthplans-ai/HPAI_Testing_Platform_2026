@@ -35,3 +35,7 @@
   .invite-link-row .tid { grid-column: 1 / -1; }
   .login-card.invite-card { padding: 22px 16px; }
 }
+.invite-countdown { display: inline-grid; gap: 2px; margin: 14px auto 4px; padding: 12px 22px; border-radius: 16px; background: linear-gradient(135deg, rgba(23, 63, 89, .07), rgba(11, 211, 122, .10)); border: 1px solid var(--line, #dce8ed); }
+.invite-countdown span { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted, #5f7886); }
+.invite-countdown b { font-size: 30px; color: var(--navy, #173f59); font-variant-numeric: tabular-nums; }
+.wake-note { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #fff7e1; color: #7a5200; font-size: 13.5px; text-align: left; }

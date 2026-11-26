@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "loadtest": "node scripts/loadtest.mjs",
+    "test:bulk": "node scripts/integration-bulk.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { queueEvent } from './eventQueue.js';
 
 // ---- tunables (reuse these in the instructions modal) ---------------------------------------------
 export const MAX_SCREEN_LEAVES = 2;   // candidate may leave the test screen this many times; the next leave auto-submits
@@ -73,8 +73,9 @@ export function useProctoring(attemptId, { enabled = true, ready = false, onNoti
   const noticeRef = useRef(onNotice);
   noticeRef.current = onNotice;
 
+  // Batched: one request per 15 s (critical events — screen_leave / screenshot_attempt — are flushed at once). See utils/eventQueue.js.
   const post = useCallback((type, meta) => {
-    if (attemptId) api.candidate.event(attemptId, type, meta).catch(() => {});
+    if (attemptId) queueEvent(attemptId, type, meta);
   }, [attemptId]);
 
   /** fine-grained, debounced event log (fire-and-forget) */

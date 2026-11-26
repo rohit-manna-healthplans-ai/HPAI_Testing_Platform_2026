@@ -4,7 +4,22 @@ import { api } from '../api.js';
 import { useAuth } from '../components/AuthContext.jsx';
 import TestRules from '../components/TestRules.jsx';
 import { Button, Field } from '../components/ui.jsx';
+import { useWake } from '../utils/wake.js';
 import '../components/invites.css';
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const fmtLeft = (sec) => { const d = Math.floor(sec / 86400); const h = Math.floor((sec % 86400) / 3600); const m = Math.floor((sec % 3600) / 60); const s = sec % 60; return `${d ? `${d}d ` : ''}${pad2(h)}:${pad2(m)}:${pad2(s)}`; };
+
+/** Live countdown to opens_at, measured against the SERVER clock (offset = server_now - local now at fetch time). */
+function OpensIn({ opensAt, offset, onOpen }) {
+  const calc = () => Math.max(0, Math.ceil((new Date(opensAt).getTime() - (Date.now() + offset)) / 1000));
+  const [left, setLeft] = useState(calc);
+  useEffect(() => {
+    const id = setInterval(() => { const l = calc(); setLeft(l); if (l <= 0) { clearInterval(id); onOpen?.(); } }, 1000);
+    return () => clearInterval(id);
+  }, [opensAt, offset]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className="invite-countdown" role="timer" aria-live="off"><span>Opens in</span><b className="mono">{fmtLeft(left)}</b></div>;
+}
 
 const GONE = {
   used: { icon: '🔒', title: 'This link has already been used', text: 'Every assessment link works only once, to keep the test secure. If you were disconnected during your test, ask your proctor for a fresh resume link.' },
@@ -25,14 +40,25 @@ export default function Invite() {
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [waking, run] = useWake(); // free-tier server may be asleep: "Waking up the server…" + auto-retry for up to ~90 s
+  const [offset, setOffset] = useState(0);
 
-  useEffect(() => {
+  const load = (silent) => {
     let alive = true;
-    api.invite.get(token).then((d) => alive && setInfo(d)).catch(() => alive && setInfo({ status: 'error' }));
+    run(() => api.invite.get(token))
+      .then((d) => {
+        if (!alive) return;
+        if (d?.server_now) setOffset(new Date(d.server_now).getTime() - Date.now());
+        if (d?.prefill) { setName((n) => n || d.prefill.name || ''); setEmail((m) => m || d.prefill.email || ''); }
+        setInfo(d);
+      })
+      .catch(() => alive && !silent && setInfo({ status: 'error' }));
     return () => { alive = false; };
-  }, [token]);
+  };
+  useEffect(() => load(false), [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resume = info?.purpose === 'resume';
+  const locked = !!info?.prefill?.locked;
 
   const start = async (e) => {
     e?.preventDefault();
@@ -43,6 +69,7 @@ export default function Invite() {
     // Fullscreen needs a user gesture; this click counts. Not fatal if the browser refuses.
     try { await document.documentElement.requestFullscreen?.(); } catch { /* ignore */ }
     try {
+      // one-time redeem is NOT auto-retried (a second attempt could hit "already used"); the server ignores name/email when the link is locked
       const res = await api.invite.redeem(token, resume ? {} : { name: name.trim(), email: email.trim() || undefined });
       setSession(res.token, res.user);
       nav(`/test/${res.attempt.id}`, { replace: true }); // replace: the one-time link must not sit in the back-stack
@@ -50,12 +77,13 @@ export default function Invite() {
       try { await document.exitFullscreen?.(); } catch { /* ignore */ }
       if (err.status === 410) {
         setInfo({ status: /revoked/i.test(err.message) ? 'revoked' : /expired/i.test(err.message) ? 'expired' : 'used' });
-      } else setError(err.message);
+      } else if (err.status === 409 && /open|start/i.test(err.message)) { load(true); setError(err.message); } // window not open yet: refresh the status/countdown
+      else setError(err.message);
       setBusy(false);
     }
   };
 
-  const gone = info && info.status !== 'valid' ? GONE[info.status] || GONE.invalid : null;
+  const gone = info && info.status !== 'valid' && info.status !== 'not_open_yet' ? GONE[info.status] || GONE.invalid : null;
   const staffSignedIn = user && user.role !== 'candidate';
 
   return (
@@ -64,7 +92,21 @@ export default function Invite() {
       <main>
         <div className="login-card invite-card">
           <img src="/logo-192.png" alt="HPAI" width="84" height="84" decoding="async" />
-          {!info && <div className="invite-loading" role="status"><span className="spinner" /> Checking your link…</div>}
+          {!info && (
+            <div className="invite-loading" role="status">
+              <span className="spinner" /> {waking ? 'Waking up the server… this can take up to a minute. Please keep this page open.' : 'Checking your link…'}
+            </div>
+          )}
+
+          {info?.status === 'not_open_yet' && (
+            <div className="invite-gone" role="status">
+              <div className="invite-gone-icon" aria-hidden="true">⏳</div>
+              <h1>Your assessment has not opened yet</h1>
+              <p className="sub">{info.session?.name ? `“${info.session.name}” ` : 'It '}opens {info.opens_at ? new Date(info.opens_at).toLocaleString() : 'soon'}. Keep this page open — the Start button appears by itself.</p>
+              {info.tester_id && <div className="invite-tester"><span>Tester ID</span><b className="mono">{info.tester_id}</b></div>}
+              {info.opens_at && <OpensIn opensAt={info.opens_at} offset={offset} onOpen={() => load(true)} />}
+            </div>
+          )}
 
           {gone && (
             <div className="invite-gone" role="alert">
@@ -93,8 +135,8 @@ export default function Invite() {
                 {staffSignedIn && <div className="alert alert-warn"><span>You are signed in as {user.name} ({user.role}). Starting will sign you out of that account in this browser — use a private window if you are only testing.</span></div>}
                 {!resume && (
                   <>
-                    <Field label="Full name"><input className="input" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="As it should appear on your certificate" autoFocus /></Field>
-                    <Field label="Email (optional)" hint="Only used to identify you in the results."><input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
+                    <Field label="Full name" hint={locked ? 'Your proctor filled this in for you. Tell them if it is wrong before you start.' : undefined}><input className="input" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="As it should appear on your certificate" autoFocus={!locked} readOnly={locked} aria-readonly={locked} /></Field>
+                    <Field label={locked && email ? 'Email' : 'Email (optional)'} hint={locked ? undefined : 'Only used to identify you in the results.'}><input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" readOnly={locked && !!info?.prefill?.email} /></Field>
                   </>
                 )}
                 <div className="invite-rules">
