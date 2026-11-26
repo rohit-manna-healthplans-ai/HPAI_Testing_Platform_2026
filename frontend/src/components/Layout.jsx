@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext.jsx';
 import { Button, Field, Modal, Spinner, useToast } from './ui.jsx';
 import { api } from '../api.js';
+import { APP_VERSION_LABEL } from '../version.js';
 
 const NAV = {
   admin: [
@@ -111,7 +112,7 @@ export default function Layout() {
         </div>
       </header>
       <main className="page" id="content" tabIndex={-1}><div key={loc.pathname} className="page-enter"><Suspense fallback={<Spinner />}><Outlet /></Suspense></div></main>
-      <footer className="foot">HPAI Testing Assessment · Healthplans.ai</footer>
+      <footer className="foot">HPAI Testing Assessment · Healthplans.ai · <span className="app-version">{APP_VERSION_LABEL}</span></footer>
       <ChangePassword open={pw} onClose={() => setPw(false)} />
     </div>
   );

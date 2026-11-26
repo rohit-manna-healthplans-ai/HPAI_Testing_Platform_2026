@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { homeFor, useAuth } from '../components/AuthContext.jsx';
 import { Button, Field } from '../components/ui.jsx';
 import { useWake } from '../utils/wake.js';
+import { APP_VERSION_LABEL } from '../version.js';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -53,6 +54,7 @@ export default function Login() {
           {error && <div className="alert alert-error" role="alert">{error}</div>}
           <Button type="submit" loading={busy} style={{ width: '100%', minHeight: 48 }}>Sign in</Button>
         </div>
+        <p className="app-version app-version-login">HPAI Testing Assessment · {APP_VERSION_LABEL}</p>
       </form>
       </main>
     </div>

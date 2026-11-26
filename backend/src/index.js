@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -12,6 +13,8 @@ import proctorRoutes from './routes/proctor.js';
 import candidateRoutes from './routes/candidate.js';
 import sharedRoutes from './routes/shared.js';
 import { proctorInvites, publicInvites } from './routes/invites.js';
+
+const { version: APP_VERSION } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind a proxy
@@ -34,7 +37,7 @@ app.use(express.json({ limit: '256kb' }));
 app.get('/api/health', async (req, res) => {
   let db = 'unknown';
   try { await query('SELECT 1'); db = 'ok'; } catch { db = 'down'; }
-  res.json({ ok: true, db, time: new Date().toISOString() });
+  res.json({ ok: true, version: APP_VERSION, db, time: new Date().toISOString() });
 });
 
 // Login: brute-force protection per ACCOUNT (not per IP) plus a high per-IP ceiling, because a whole lab may share one public IP.
