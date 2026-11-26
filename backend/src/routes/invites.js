@@ -196,6 +196,10 @@ proctorInvites.get('/sessions/:id/live', asyncHandler(async (req, res) => {
   sendJsonEtag(req, res, payload, base); // ETag ignores server_now / seconds_left
 }));
 
+// A link may be removed only if it was NEVER used (no redeem, no attempt) and is dead: revoked, replaced by a newer link, or expired.
+// Alias `i` is required by the callers.
+const REMOVABLE = `i.used_at IS NULL AND i.attempt_id IS NULL AND (i.revoked_at IS NOT NULL OR i.replaced_by IS NOT NULL OR i.expires_at < now())`;
+
 // ---- bulk actions ----
 proctorInvites.post('/sessions/:id/bulk', asyncHandler(async (req, res) => {
   const session = await loadOwnSession(req, req.params.id);
@@ -275,7 +279,24 @@ proctorInvites.post('/sessions/:id/bulk', asyncHandler(async (req, res) => {
     flush();
     return res.json({ ok: true, action, affected: 1 });
   }
-  throw new HttpError(400, "action must be one of: extend, revoke_unused, regenerate_unused, close");
+
+  if (action === 'remove_inactive') {
+    // ONE statement: delete every never-used link of this session that is revoked, replaced or expired. Used links and
+    // links tied to an attempt (incl. resume links) carry results and are never touched. replaced_by is a plain column
+    // (no FK), so dropping reissue-chain predecessors together with their successor cannot fail.
+    const { rows } = await query(
+      `WITH del AS (
+         DELETE FROM invites i
+          WHERE i.session_id=$1 AND ${REMOVABLE}
+          RETURNING i.id, i.replaced_by)
+       SELECT (count(*) FILTER (WHERE replaced_by IS NULL))::int AS visible, count(*)::int AS total FROM del`, [sid]);
+    const { visible, total } = rows[0];
+    if (total) await audit(req.user.id, 'invite.remove_inactive', 'session', sid, { count: visible, rows_deleted: total });
+    flush();
+    // affected = links that were visible on the board (the number the proctor sees); rows_deleted also counts hidden reissue predecessors
+    return res.json({ ok: true, action, affected: visible, rows_deleted: total });
+  }
+  throw new HttpError(400, "action must be one of: extend, revoke_unused, regenerate_unused, remove_inactive, close");
 }));
 
 async function loadOwnInvite(req, id) {
@@ -292,6 +313,29 @@ proctorInvites.post('/invites/:id/revoke', asyncHandler(async (req, res) => {
   if (rowCount) await audit(req.user.id, 'invite.revoke', 'invite', inv.id, { tester_id: inv.tester_id });
   liveCache.del(inv.session_id);
   res.json({ ok: true });
+}));
+
+// Permanently remove ONE dead, never-used link (and its dead reissue predecessors). Used links carry results and are refused.
+proctorInvites.delete('/invites/:id', asyncHandler(async (req, res) => {
+  const inv = await loadOwnInvite(req, req.params.id);
+  if (inv.used_at) throw new HttpError(409, 'Used links carry results and cannot be removed');
+  if (inv.attempt_id) throw new HttpError(409, 'This link belongs to a test attempt and cannot be removed');
+  const dead = inv.revoked_at || inv.replaced_by || new Date(inv.expires_at).getTime() < Date.now();
+  if (!dead) throw new HttpError(409, 'Active links cannot be removed: revoke it first');
+  const removed = await tx(async (c) => {
+    // the link itself plus never-used predecessors that were replaced by it (a reissue chain); guarded so nothing used is deleted
+    const { rowCount } = await c.query(
+      `WITH RECURSIVE chain AS (
+         SELECT id FROM invites WHERE id=$1
+         UNION
+         SELECT p.id FROM invites p JOIN chain c ON p.replaced_by = c.id)
+       DELETE FROM invites i WHERE i.id IN (SELECT id FROM chain) AND i.used_at IS NULL AND i.attempt_id IS NULL`, [inv.id]);
+    if (rowCount) await audit(req.user.id, 'invite.remove', 'invite', inv.id, { tester_id: inv.tester_id, session_id: inv.session_id, rows_deleted: rowCount }, c);
+    return rowCount;
+  });
+  liveCache.del(inv.session_id);
+  dropSession(inv.session_id);
+  res.json({ ok: true, removed: removed > 0 });
 }));
 
 proctorInvites.post('/invites/:id/reissue', asyncHandler(async (req, res) => {

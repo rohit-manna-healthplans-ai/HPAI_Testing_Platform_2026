@@ -5,6 +5,10 @@ The version is shown in the app (login card and footer) and returned by `GET /ap
 
 ## Unreleased
 
+- **Invite cleanup:** revoked / expired links are hidden on the live board by default (toggle to show). A never-used
+  revoked / expired link can be removed one at a time, or all at once (`remove_inactive`); used links, attempts and
+  results are never deleted. Removals are audit-logged.
+- **Certificate:** removed the two signature lines above the date and issuer.
 - **Fix:** `ERR_CONNECTION_RESET` / 502 on POST requests sent over an idle keep-alive connection (e.g. creating a session
   after a long time in the wizard). The API now keeps sockets open for 65 s (longer than proxy idle timeouts).
 - **Reliability:** stray unhandled rejections / uncaught exceptions are logged instead of crashing the server

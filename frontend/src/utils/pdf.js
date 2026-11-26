@@ -127,8 +127,6 @@ export async function downloadCertificate(result) {
   doc.text(line, W / 2, 135, { align: 'center' });
 
   const footY = H - 34;
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.4);
-  doc.line(30, footY, 90, footY); doc.line(W - 90, footY, W - 30, footY);
   doc.setFontSize(10); doc.setTextColor(...NAVY);
   doc.text(fmtDay(result.submitted_at), 60, footY + 6, { align: 'center' });
   doc.setTextColor(...MUTED); doc.text('Date of assessment', 60, footY + 11, { align: 'center' });

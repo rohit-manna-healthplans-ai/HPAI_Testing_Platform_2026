@@ -30,7 +30,8 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
   const [hours, setHours] = useState(24);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(null); // [{id,tester_id,label,token,expires_at,purpose?}]
-  const [confirm, setConfirm] = useState(null); // {kind:'revoke'|'reissue', row}
+  const [confirm, setConfirm] = useState(null); // {kind:'revoke'|'reissue'|'remove'|'remove_inactive', row?, count?}
+  const [showGone, setShowGone] = useState(false); // revoked / expired links are hidden by default
 
   useInterval(() => reload(true), 20000);
 
@@ -57,7 +58,11 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
     const { kind, row } = confirm;
     try {
       if (kind === 'revoke') { await api.proctor.revokeInvite(row.id); toast('Link revoked', 'success'); }
-      else { const res = await api.proctor.reissueInvite(row.id, { expires_hours: hours }); setCreated([res.invite]); toast('New link created', 'success'); }
+      else if (kind === 'remove') { await api.proctor.removeInvite(row.id); toast(`Link ${row.tester_id} removed`, 'success'); }
+      else if (kind === 'remove_inactive') {
+        const r = await api.proctor.removeInactiveInvites(sessionId);
+        toast(`${r.affected ?? 0} revoked / expired link${r.affected === 1 ? '' : 's'} removed`, 'success');
+      } else { const res = await api.proctor.reissueInvite(row.id, { expires_hours: hours }); setCreated([res.invite]); toast('New link created', 'success'); }
       reload(true); onChanged?.();
     } catch (e) { toast(e.message, 'error'); }
     setConfirm(null);
@@ -66,7 +71,11 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
   const downloadLinks = (list) => downloadCSV(`invite_links_${new Date().toISOString().slice(0, 10)}.csv`,
     [{ label: 'Tester ID', value: (r) => r.tester_id }, { label: 'Name / label', value: (r) => r.label || '' }, { label: 'Link', value: (r) => linkFor(r.token) }, { label: 'Expires', value: (r) => r.expires_at }], list);
 
-  const rows = data || [];
+  const allRows = data || [];
+  const isDead = (r) => (r.status === 'expired' || r.status === 'revoked') && !r.attempt; // never used: safe to remove
+  const goneCount = allRows.filter(isDead).length;
+  const rows = showGone ? allRows : allRows.filter((r) => !(r.status === 'expired' || r.status === 'revoked'));
+  const hiddenCount = allRows.length - rows.length;
   const cols = [
     { key: 'tester_id', label: 'Tester ID', render: (r) => <span className="tester-chip">{r.tester_id}</span> },
     { key: 'who', label: 'Candidate', sortValue: (r) => r.candidate_name || r.label || '', render: (r) => (
@@ -86,6 +95,7 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
           {r.status === 'unused' && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'revoke', row: r })}>Revoke</Button>}
           {(r.status === 'unused' || r.status === 'expired' || r.status === 'revoked') && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'reissue', row: r })}>Reissue</Button>}
           {r.status === 'used' && live && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'reissue', row: r })}>Resume link</Button>}
+          {isDead(r) && <Button size="sm" variant="ghost" aria-label={`Remove link ${r.tester_id}`} onClick={() => setConfirm({ kind: 'remove', row: r })}>Remove</Button>}
         </div>
       );
     } },
@@ -120,7 +130,12 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
         {!loading && !error && rows.length === 0
           ? <EmptyState title="No invite links yet" hint="Generate links above and share each one with a single candidate." />
           : <DataTable columns={cols} rows={rows} searchKeys={['tester_id', 'label', 'candidate_name', 'status']} pageSize={10} searchPlaceholder="Search tester ID or name…"
-            toolbar={<><Button size="sm" variant="ghost" onClick={() => reload(true)}>↻ Refresh</Button><Button size="sm" variant="ghost" onClick={exportStatus} disabled={!rows.length}>⬇ Status CSV</Button></>} />}
+            toolbar={<>
+              <Button size="sm" variant="ghost" onClick={() => reload(true)}>↻ Refresh</Button>
+              <Button size="sm" variant="ghost" onClick={exportStatus} disabled={!rows.length}>⬇ Status CSV</Button>
+              {(hiddenCount > 0 || showGone) && <Button size="sm" variant="ghost" aria-pressed={showGone} onClick={() => setShowGone((v) => !v)}>{showGone ? 'Hide' : 'Show'} revoked / expired ({showGone ? allRows.filter((r) => r.status === 'expired' || r.status === 'revoked').length : hiddenCount})</Button>}
+              <Button size="sm" variant="ghost" disabled={!goneCount} onClick={() => setConfirm({ kind: 'remove_inactive', count: goneCount })}>Remove revoked &amp; expired ({goneCount})</Button>
+            </>} />}
       </div>
 
       <Modal open={!!created} wide title={created?.length > 1 ? `${created.length} links created` : 'Link created'} onClose={() => setCreated(null)}
@@ -146,14 +161,18 @@ export default function InvitePanel({ sessionId, sessionOpen, onChanged }) {
         )}
       </Modal>
 
-      <ConfirmDialog open={!!confirm} danger={confirm?.kind === 'revoke'}
-        title={confirm?.kind === 'revoke' ? 'Revoke this link?' : confirm?.row?.status === 'used' ? 'Create a resume link?' : 'Reissue this link?'}
+      <ConfirmDialog open={!!confirm} danger={['revoke', 'remove', 'remove_inactive'].includes(confirm?.kind)}
+        title={confirm?.kind === 'revoke' ? 'Revoke this link?' : confirm?.kind === 'remove' ? 'Remove this link permanently?' : confirm?.kind === 'remove_inactive' ? 'Remove all revoked & expired links?' : confirm?.row?.status === 'used' ? 'Create a resume link?' : 'Reissue this link?'}
         message={confirm?.kind === 'revoke'
           ? `${confirm?.row?.tester_id}: the link stops working immediately.`
+          : confirm?.kind === 'remove'
+            ? `${confirm?.row?.tester_id}: its tester ID will disappear from this session. This cannot be undone.`
+            : confirm?.kind === 'remove_inactive'
+              ? `${confirm?.count} revoked / expired link${confirm?.count === 1 ? '' : 's'} that nobody ever used will be deleted permanently. Used links and all test results are not touched.`
           : confirm?.row?.status === 'used'
             ? `${confirm?.row?.tester_id} already started. A one-time resume link lets the same candidate continue the SAME test (timer unchanged) if they lost their browser session. The old link stays used.`
             : `${confirm?.row?.tester_id}: the current link is cancelled and a new one-time link with the same Tester ID is created.`}
-        confirmLabel={confirm?.kind === 'revoke' ? 'Revoke' : 'Create new link'} onCancel={() => setConfirm(null)} onConfirm={doConfirm} />
+        confirmLabel={confirm?.kind === 'revoke' ? 'Revoke' : confirm?.kind === 'remove' ? 'Remove link' : confirm?.kind === 'remove_inactive' ? 'Remove all' : 'Create new link'} onCancel={() => setConfirm(null)} onConfirm={doConfirm} />
     </Card>
   );
 }

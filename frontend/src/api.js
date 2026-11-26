@@ -98,6 +98,8 @@ export const api = {
     invites: (sessionId) => get(`/proctor/sessions/${sessionId}/invites`),
     revokeInvite: (id) => post(`/proctor/invites/${id}/revoke`),
     reissueInvite: (id, b) => post(`/proctor/invites/${id}/reissue`, b),
+    removeInvite: (id) => del(`/proctor/invites/${id}`),
+    removeInactiveInvites: (sessionId) => post(`/proctor/sessions/${sessionId}/bulk`, { action: 'remove_inactive' }),
   },
   // public one-time invite links (no login needed)
   invite: {
