@@ -1,0 +1,13 @@
+{
+  "name": "hpai-assessment-platform",
+  "private": true,
+  "description": "Convenience scripts for the monorepo. Backend, frontend and question-bank each have their own package.json.",
+  "scripts": {
+    "build-bank": "npm --prefix question-bank run build-bank",
+    "validate-bank": "npm --prefix question-bank run validate",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "migrate": "npm --prefix backend run migrate",
+    "seed": "npm --prefix backend run seed"
+  }
+}

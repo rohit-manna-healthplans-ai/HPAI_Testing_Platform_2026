@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#173f59" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" type="image/png" href="/logo-192.png" />
+    <title>HPAI Assessment Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Critical first-paint CSS: background + boot spinner, replaced as soon as React mounts -->
+    <style>
+      html,body{margin:0;min-height:100%}
+      body{font-family:Figtree,system-ui,Arial,sans-serif;color:#173044;background:radial-gradient(circle at 8% 6%,rgba(162,207,226,.38),transparent 28%),radial-gradient(circle at 92% 10%,rgba(11,211,122,.10),transparent 22%),linear-gradient(135deg,#edf7fb,#f9fcfd 55%,#e7f1f6);background-attachment:fixed}
+      .boot{min-height:100vh;display:grid;place-items:center;align-content:center;gap:14px}
+      .boot img{width:64px;height:64px;object-fit:contain}
+      .boot i{width:26px;height:26px;border-radius:50%;border:3px solid #cfe3ec;border-top-color:#1f6688;animation:bspin .8s linear infinite}
+      @keyframes bspin{to{transform:rotate(360deg)}}
+      @media (prefers-reduced-motion:reduce){.boot i{animation-duration:2s}}
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="boot" role="status" aria-label="Loading"><img src="/logo-192.png" alt="" width="64" height="64" /><i></i></div></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

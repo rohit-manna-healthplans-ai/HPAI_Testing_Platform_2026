@@ -1,0 +1,49 @@
+/* Complexity analysis panel (proctor / admin review). Animates transform/opacity/stroke only; respects reduced motion. */
+.cx-panel { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(248,251,252,.9)); display: grid; gap: 12px; }
+.cx-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.cx-title { display: flex; align-items: center; gap: 10px; }
+.cx-title > div { display: grid; line-height: 1.25; }
+.cx-glyph { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--grad-brand); color: #fff; font-size: 16px; }
+.cx-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cx-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.cx-seg button { border: 0; background: transparent; padding: 7px 12px; min-height: 36px; font-weight: 700; font-size: 12px; color: var(--muted); cursor: pointer; }
+.cx-seg button[aria-pressed="true"] { background: var(--navy); color: #fff; }
+.cx-seg button:focus-visible { outline: 3px solid rgba(31,102,136,.35); outline-offset: -3px; }
+.cx-progress { display: grid; gap: 6px; }
+.cx-alert { border: 1px solid #f2d19e; background: #fff6e8; color: #7d4a0c; border-radius: 10px; padding: 9px 12px; font-size: 13px; }
+.cx-body { display: grid; gap: 12px; animation: cxFade .35s var(--ease, ease) both; }
+.cx-badges { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.cx-big { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; background: #fff; }
+.cx-big > span { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); width: 100%; }
+.cx-big > b { font-size: 26px; letter-spacing: -.5px; color: var(--navy); font-family: var(--mono); }
+.cx-src { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 3px 9px; }
+.cx-src.measured { background: #e5f8ee; color: #0b6b40; }
+.cx-src.static { background: #fff1df; color: #7d4a0c; }
+.cx-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.cx-chart { margin: 0; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 8px 8px 2px; min-width: 0; }
+.cx-chart figcaption { display: flex; justify-content: space-between; align-items: center; padding: 2px 8px 0; font-size: 13px; }
+.cx-class { font-family: var(--mono); font-weight: 700; color: var(--blue); }
+.cx-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.cx-grid { stroke: #e6eff3; stroke-width: 1; }
+.cx-axis { stroke: #9fb4bf; stroke-width: 1; }
+.cx-tick { font: 10px var(--mono); fill: #5d7684; }
+.cx-axis-label { font: 700 11px Figtree, sans-serif; fill: #55707f; }
+.cx-ref { fill: none; stroke: #b9cdd6; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .8; }
+.cx-ref-label { font: 700 10px Figtree, sans-serif; fill: #7b94a1; }
+.cx-fit { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.cx-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cxDraw 1s var(--ease, ease) .1s forwards; }
+.cx-dot { fill: #fff; stroke: var(--navy); stroke-width: 2.5; opacity: 0; transform-box: fill-box; transform-origin: center; animation: cxPop .4s var(--spring, ease) forwards; transition: r .15s; cursor: pointer; }
+.cx-tip { fill: var(--navy); }
+.cx-tip-text { font: 700 11px var(--mono); fill: #fff; }
+.cx-note { margin: 0; font-size: 12.5px; color: #5d7684; }
+.cx-why summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--navy); }
+.cx-why ul { margin: 6px 0; padding-left: 18px; font-size: 13px; color: #4a6472; }
+.cx-caveat { margin: 0; font-size: 12px; color: #6a8290; font-style: italic; }
+@keyframes cxDraw { to { stroke-dashoffset: 0; } }
+@keyframes cxPop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes cxFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 560px) { .cx-big > b { font-size: 22px; } .cx-panel { padding: 10px; } }
+@media (prefers-reduced-motion: reduce) {
+  .cx-body, .cx-dot { animation: none; opacity: 1; transform: none; }
+  .cx-draw { animation: none; stroke-dashoffset: 0; }
+}

@@ -1,0 +1,37 @@
+/* One-time invite links: public Invite page + proctor InvitePanel. Uses tokens from styles.css. */
+.login-card.invite-card { width: min(600px, 100%); max-height: calc(100dvh - 32px); overflow: auto; text-align: center; scrollbar-width: thin; }
+.login-screen:has(.invite-card) { align-items: start; padding-block: 16px; }
+.invite-card h1 { font-size: 25px; }
+.invite-card h2 { font-size: 14px; margin: 0 0 8px; color: var(--navy); text-align: left; }
+.invite-loading { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; margin: 12px 0 6px; }
+.invite-gone { padding: 6px 4px 4px; }
+.invite-gone-icon { font-size: 44px; line-height: 1; margin: 8px 0 4px; animation: pop .6s var(--spring) backwards; }
+.invite-gone p.sub { margin-bottom: 14px; }
+.invite-tester { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 7px 14px; border-radius: 999px; background: #e8f0f5; border: 1px dashed #9cc3d6; color: var(--navy); font-size: 12.5px; }
+.invite-tester span { font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; font-size: 10.5px; }
+.invite-tester b { font-size: 15px; letter-spacing: 1px; }
+.invite-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 16px; }
+.invite-facts div { display: grid; gap: 2px; padding: 10px 6px; border-radius: 12px; background: #f3f8fb; border: 1px solid var(--line); min-width: 0; }
+.invite-facts b { color: var(--navy); font-size: 15px; overflow-wrap: anywhere; }
+.invite-facts span { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.invite-rules { text-align: left; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: #fafdfe; }
+.invite-rules .rules { font-size: 13.5px; line-height: 1.65; }
+
+/* proctor side */
+.invite-gen { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.invite-gen textarea { min-height: 92px; resize: vertical; }
+.invite-link-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.invite-link-row + .invite-link-row { margin-top: 8px; }
+.invite-link-row .tid { font-family: var(--mono); font-weight: 600; color: var(--navy); font-size: 12.5px; }
+.invite-link-row .url { font-family: var(--mono); font-size: 12px; color: #3c5868; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
+.invite-link-row .who { display: block; color: var(--muted); font-size: 11.5px; font-family: var(--font, inherit); }
+.invite-links-list { max-height: min(52vh, 460px); overflow: auto; padding-right: 2px; }
+.tester-chip { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--navy); background: #eaf2f7; border-radius: 8px; padding: 2px 8px; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .invite-facts { grid-template-columns: repeat(2, 1fr); }
+  .invite-gen { grid-template-columns: 1fr; }
+  .invite-link-row { grid-template-columns: 1fr auto; }
+  .invite-link-row .tid { grid-column: 1 / -1; }
+  .login-card.invite-card { padding: 22px 16px; }
+}
