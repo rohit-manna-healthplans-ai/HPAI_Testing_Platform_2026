@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import DataTable from '../../components/DataTable.jsx';
 import { BulkAddModal, CredentialsModal } from '../../components/UserForms.jsx';
+import ResetRequests from '../../components/ResetRequests.jsx';
 import { Badge, Button, Card, ConfirmDialog, ErrorBox, Field, Modal, Spinner, Tabs, useAsync, useToast } from '../../components/ui.jsx';
 import { fmtDate } from '../../utils/format.js';
 
@@ -128,6 +129,7 @@ export default function Users() {
           <Button onClick={() => setAdd(true)}>+ Add {role}</Button>
         </div>
       </div>
+      <ResetRequests />
       <Tabs tabs={ROLE_TABS.map((t) => ({ ...t, count: counts(t.value) }))} value={role} onChange={setRole} />
       <Card pad={false}>
         <ErrorBox error={users.error} onRetry={users.reload} />

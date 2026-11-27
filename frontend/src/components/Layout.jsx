@@ -2,7 +2,8 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext.jsx';
 import { Button, Field, Modal, Spinner, useToast } from './ui.jsx';
-import { api } from '../api.js';
+import { api, auth } from '../api.js';
+import { RESETS_CHANGED } from '../utils/resetEvents.js';
 import { APP_VERSION_LABEL } from '../version.js';
 
 const NAV = {
@@ -20,6 +21,26 @@ const NAV = {
   ],
   candidate: [{ to: '/candidate', label: 'My assessments', end: true }],
 };
+
+/** Admin nav badge: number of pending 'Forgot password' requests. Light polling: on mount, every 60 s, only while the tab is visible. */
+function usePendingResets(enabled) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let alive = true;
+    const load = async () => {
+      if (document.hidden) return;
+      try { const r = await api.admin.passwordResetCount(); if (alive) setN(r?.pending || 0); } catch { /* the badge is optional */ }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener(RESETS_CHANGED, load);
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener(RESETS_CHANGED, load); };
+  }, [enabled]);
+  return n;
+}
 
 export function Brand({ small }) {
   return (
@@ -43,7 +64,11 @@ function ChangePassword({ open, onClose }) {
     e.preventDefault();
     if (form.new_password.length < 8) { setErr('New password must be at least 8 characters.'); return; }
     setBusy(true); setErr('');
-    try { await api.changePassword(form.old_password, form.new_password); toast('Password updated', 'success'); onClose(); }
+    try {
+      const res = await api.changePassword(form.old_password, form.new_password);
+      if (res?.token) auth.set(res.token, auth.user); // every older session was just invalidated; keep this one signed in
+      toast('Password updated', 'success'); onClose();
+    }
     catch (e2) { setErr(e2.message); } finally { setBusy(false); }
   };
   return (
@@ -67,6 +92,7 @@ export default function Layout() {
   const ref = useRef(null);
   const loc = useLocation();
   const items = NAV[user.role] || [];
+  const pendingResets = usePendingResets(user.role === 'admin');
 
   // Close the mobile nav on navigation or Escape.
   useEffect(() => { setNavOpen(false); setMenu(false); }, [loc.pathname]);
@@ -95,7 +121,10 @@ export default function Layout() {
           )}
           <nav id="main-nav" className={`topnav ${navOpen ? 'open' : ''} ${items.length <= 1 ? 'single' : ''}`} aria-label="Main">
             {items.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `navlink ${isActive ? 'active' : ''}`}>{n.label}</NavLink>
+              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `navlink ${isActive ? 'active' : ''}`}>
+                {n.label}
+                {n.to === '/admin/users' && pendingResets > 0 && <span className="nav-badge" role="status" aria-label={`${pendingResets} pending password reset request${pendingResets === 1 ? '' : 's'}`}>{pendingResets}</span>}
+              </NavLink>
             ))}
           </nav>
           <div className="user" ref={ref}>
