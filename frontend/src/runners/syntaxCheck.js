@@ -45,6 +45,6 @@ export async function runSyntaxOnly(question, response) {
     const analysis = await engine.analyze(response.language, code);
     return markSyntaxOnly(question, response, analysis, { starter });
   } catch (e) {
-    return markSyntaxOnly(question, response, null, { starter, loadError: 'Could not load the syntax checker (check your internet connection). Press "Check syntax" to retry.' });
+    return markSyntaxOnly(question, response, null, { starter, loadError: 'Could not evaluate this answer right now (check your internet connection). Please try again.' });
   }
 }
