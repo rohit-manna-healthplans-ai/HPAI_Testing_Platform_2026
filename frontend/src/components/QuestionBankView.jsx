@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { loadBank, unsealAll } from '../bank/index.js';
 import DataTable from './DataTable.jsx';
+import { isInteractiveType, unitsLabel } from './interactive/meta.js';
 import { Badge, Button, Card, ErrorBox, Field, Modal, Spinner, useAsync, useToast } from './ui.jsx';
 
-const TYPES = ['coding', 'sql', 'nosql', 'ui', 'mcq'];
+// Drag & drop question types render through a lazy chunk (shared with the candidate test screen).
+const InteractivePreview = lazy(() => import('./interactive/InteractiveQuestion.jsx').then((m) => ({ default: m.InteractivePreview })));
+
+const TYPES = ['coding', 'sql', 'nosql', 'ui', 'mcq', 'sequence', 'match', 'architecture'];
 const DIFFS = ['easy', 'medium', 'hard'];
 const pretty = (v) => JSON.stringify(v, null, 2);
 const REVEAL_MS = 10 * 60 * 1000;
@@ -19,10 +23,15 @@ export function QuestionPreview({ q, full }) {
     <div className="stack">
       <div className="row">
         <Badge tone="blue">{q.subject_name}</Badge><Badge tone={q.difficulty}>{q.difficulty}</Badge><Badge>{q.type}</Badge>
-        <span className="muted small">{q.marks} marks · {q.time_mins} min{q.type === 'mcq' ? '' : ` · ${q.test_count || 0} tests (${hiddenCount} hidden)`} · id <code>{q.id}</code></span>
+        <span className="muted small">{q.marks} marks · {q.time_mins} min{q.type === 'mcq' ? '' : isInteractiveType(q.type) ? ` · ${unitsLabel(q)}` : ` · ${q.test_count || 0} tests (${hiddenCount} hidden)`} · id <code>{q.id}</code></span>
       </div>
       <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.statement}</p>
-      {q.config?.scenario && <div className="alert alert-info" style={{ whiteSpace: 'pre-wrap' }}>{q.config.scenario}</div>}
+      {q.config?.scenario && !isInteractiveType(q.type) && <div className="alert alert-info" style={{ whiteSpace: 'pre-wrap' }}>{q.config.scenario}</div>}
+      {isInteractiveType(q.type) && (
+        <Suspense fallback={<Spinner />}>
+          <InteractivePreview question={q} solution={full?.solution} />
+        </Suspense>
+      )}
       {q.config?.options && (
         <ol>{q.config.options.map((o, i) => {
           const ok = revealed && src.config?.correct?.includes(i);
@@ -37,7 +46,7 @@ export function QuestionPreview({ q, full }) {
           {q.config.examples.map((e, i) => <pre className="pre" key={i}>{`Input:  ${e.input}\nOutput: ${e.output}${e.explanation ? `\n${e.explanation}` : ''}`}</pre>)}
         </div>
       )}
-      {q.type !== 'mcq' && (
+      {q.type !== 'mcq' && !isInteractiveType(q.type) && (
         <details open={!revealed}><summary className="small" style={{ cursor: 'pointer', fontWeight: 800 }}>
           {revealed ? 'All tests incl. hidden (revealed)' : 'Sample tests shown to candidates'}</summary>
           <pre className="pre">{pretty(revealed ? src.tests : visibleTests)}</pre>

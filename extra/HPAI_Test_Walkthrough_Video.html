@@ -707,7 +707,7 @@ const leftCoding = `<div class="card pb" data-k="pb"><span class="k">Q1 · Progr
   <div class="bx"><h4>Examples</h4><div class="ex"><div><span>Input</span><code>text = "A man, a plan, a canal: Panama"</code></div><div><span>Output</span><code class="e">true</code></div></div><div class="ex"><div><span>Input</span><code>text = "race a car"</code></div><div><span>Output</span><code class="e">false</code></div></div><small class="hint">+ 5 hidden tests (edge cases)</small></div></div>`;
 const STARTER = 'def valid_palindrome(text):\n    # write your code here\n    pass';
 const rightCoding = (code = STARTER, consoleHtml = '<span class="nt">Run your solution to see sample results here.</span>', langLabel = 'Python') => `<div class="card edwrap"><div class="edtop"><span class="sel" data-k="lang">${langLabel} ▾</span><span style="color:#bfe2ef">Code Editor</span>
-  <div class="dd-list" data-k="ddl"><h5>Run &amp; auto-mark</h5><div class="sel2">Python</div><div>JavaScript</div><div>TypeScript</div><h5>Syntax check only</h5><div class="syn"><span>C</span><span>C++</span><span>Java</span><span>C#</span><span>Go</span><span>Rust</span><span>Ruby</span><span>PHP</span><span>Kotlin</span><span>Swift</span><span>Bash</span></div></div></div>
+  <div class="dd-list" data-k="ddl"><h5>Language</h5><div class="syn"><span style="background:#d6ecf7;color:#14587c">Python</span><span>JavaScript</span><span>TypeScript</span><span>C</span><span>C++</span><span>Java</span><span>C#</span><span>Go</span><span>Rust</span><span>Ruby</span><span>PHP</span><span>Kotlin</span><span>Swift</span><span>Bash</span></div></div></div>
   <div class="editor" data-k="code">${window.__hl(code, 'py', false)}</div>
   <div class="edfoot"><span class="trbtn">← Prev</span><span class="trbtn">Next →</span><span class="grow" style="flex:1"></span><span class="trbtn run" data-k="run">▶ Run sample tests</span><span class="trbtn sub" data-k="submit">Submit assessment</span></div>
   <div class="console" data-k="console">${consoleHtml}</div></div>`;
@@ -730,7 +730,7 @@ CHAPTERS.push({
       async do(S) { await S.focus('trh', { max: 2.0, pad: 80, cy: 300 }); S.spot('timer', { pad: 10 }); await S.wait(1300); S.spot('leaves', { pad: 10 }); await S.wait(1300); S.unspot(); await S.focus('qnav', { max: 1.9, pad: 120, cy: 360 }); S.spot('qnav', { pad: 6 }); await S.wait(1300); S.unspot(); } },
     { say: 'On the left is the problem, with its constraints and examples. On the right is the code editor.',
       async do(S) { await S.focus('pb', { max: 1.7, pad: 20 }); await S.wait(1100); await S.focus('code', { max: 1.9, pad: 120 }); } },
-    { say: 'Choose your language. Python, JavaScript and TypeScript are run and marked on real test cases. C, C plus plus, Java and the other languages are syntax-checked only.',
+    { say: 'Choose your language from one simple list: Python, JavaScript, TypeScript, C, C plus plus, Java and more. Your code is kept separately for each language.',
       async do(S) { await S.focus('lang', { max: 2.0, pad: 250, cy: 480 }); await S.click('lang'); S.on('ddl'); await S.wait(2200); S.spot('ddl', { pad: 10 }); await S.wait(2800); S.unspot(); S.off('ddl'); } },
     { say: 'The editor colours your code and indents automatically. Press Run sample tests to see the results. More hidden tests run when you submit, and marks are partial: the question’s marks, times tests passed, divided by total tests.',
       async do(S) { await S.focus('code', { max: 1.8, pad: 100, cy: 420 });
