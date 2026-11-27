@@ -144,7 +144,7 @@ export function markSyntaxOnly(question, response, analysis, { starter = '', loa
   if (!code.trim()) return { ...mk(defs.map(() => false), defs.map(() => 'No code written.')), error: 'No code written.', syntax: { errors: [] } };
   if (code.trim() === String(starter).trim()) return { ...mk(defs.map(() => false), defs.map(() => 'No changes made to the starter code.')), syntax: { errors: [] } };
   if (loadError || !analysis) {
-    const msg = loadError || 'Syntax checker unavailable.';
+    const msg = loadError || 'This answer could not be evaluated right now. Please try again.';
     return { ...mk(defs.map(() => false), defs.map(() => msg)), error: msg, retryable: true, syntax: { errors: [] } };
   }
 
