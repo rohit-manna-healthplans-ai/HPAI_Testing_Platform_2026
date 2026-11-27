@@ -5,6 +5,9 @@ The version is shown in the app (login card and footer) and returned by `GET /ap
 
 ## Unreleased
 
+- **Docs:** narrated walkthrough video (`extra/HPAI_Test_Walkthrough_Video.html`, open in Edge) and a written
+  Proctor & Candidate guide (`extra/HPAI_Proctor_Candidate_Guide.md`).
+- **Forgot password for proctors:** *Forgot password?* on the sign-in page. Email mode (Resend over HTTPS, optional) sends a one-time link; admin-assisted mode (default) queues the request under *Users -> Password reset requests* with a nav badge, and the admin shares a one-time link. Links are hashed, single-use and expire (30 min); responses never reveal whether an account exists; rate-limited. Password changes and resets now sign out older sessions. New `npm run reset-admin-password` for admin recovery. Shared password rule: 8+ characters (change-password now enforces it on the server too).
 - **Invite cleanup:** revoked / expired links are hidden on the live board by default (toggle to show). A never-used
   revoked / expired link can be removed one at a time, or all at once (`remove_inactive`); used links, attempts and
   results are never deleted. Removals are audit-logged.

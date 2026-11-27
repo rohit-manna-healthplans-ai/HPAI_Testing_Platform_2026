@@ -140,3 +140,22 @@ CREATE INDEX IF NOT EXISTS attempts_session_status_idx ON attempts (session_id, 
 CREATE INDEX IF NOT EXISTS answers_attempt_updated_idx ON answers (attempt_id, updated_at);
 CREATE INDEX IF NOT EXISTS proctor_events_attempt_type_idx ON proctor_events (attempt_id, type);
 CREATE INDEX IF NOT EXISTS session_candidates_candidate_idx ON session_candidates (candidate_id);
+
+-- ---------- password reset (proctors) ----------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz NULL;
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text NULL UNIQUE,            -- sha256 of the one-time token; plaintext is never stored
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','issued','used','expired','dismissed')),
+  issued_by uuid NULL,                    -- admin who created the link (NULL = emailed automatically)
+  issued_at timestamptz NULL,
+  expires_at timestamptz NULL,
+  used_at timestamptz NULL,
+  emailed boolean NOT NULL DEFAULT false,
+  ip text NULL
+);
+CREATE INDEX IF NOT EXISTS password_resets_status_idx ON password_resets (status, requested_at);
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets (user_id, status);

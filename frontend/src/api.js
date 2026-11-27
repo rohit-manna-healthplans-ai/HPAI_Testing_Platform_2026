@@ -59,12 +59,20 @@ export const api = {
   login: (email, password) => post('/auth/login', { email, password }),
   me: () => get('/auth/me'),
   changePassword: (old_password, new_password) => post('/auth/change-password', { old_password, new_password }),
+  // forgot / reset password (proctors). The forgot answer is always the same generic message.
+  forgotPassword: (email) => post('/auth/forgot-password', { email }),
+  checkResetToken: (token) => get('/auth/reset-password/' + encodeURIComponent(token)),
+  resetPassword: (token, new_password) => post('/auth/reset-password', { token, new_password }),
   verifyCertificate: (code) => get(`/verify/${encodeURIComponent(code)}`),
   // shared
   subjects: () => get('/subjects'),
   // admin
   admin: {
     users: (role) => get(`/admin/users${qs({ role })}`),
+    passwordResets: (status = 'all') => get(`/admin/password-resets${qs({ status })}`),
+    passwordResetCount: () => get('/admin/password-resets/count'),
+    issueReset: (id) => post(`/admin/password-resets/${id}/issue`),
+    dismissReset: (id) => post(`/admin/password-resets/${id}/dismiss`),
     createUser: (b) => post('/admin/users', b),
     bulkUsers: (b) => post('/admin/users/bulk', b),
     updateUser: (id, b) => patch(`/admin/users/${id}`, b),

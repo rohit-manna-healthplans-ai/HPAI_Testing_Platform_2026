@@ -60,3 +60,20 @@ Put the final Vercel URL into Render `CORS_ORIGIN` and redeploy Render. If you u
 - Code change: `git push` - Vercel and Render redeploy automatically.
 - Question change: edit `question-bank/`, `npm run validate-bank`, `npm run build-bank`, commit both generated files, push. Frontend and backend deploy together so `BANK_VERSION` matches; don't rename question titles after attempts exist (ids derive from titles).
 - Schema change: add it to `backend/sql/schema.sql` (idempotent) and run `npm run migrate` locally against Supabase.
+
+## 8. Forgot password for proctors (optional email)
+Works out of the box in **admin-assisted mode**: a proctor clicks *Forgot password?*, the request shows up for the admin under **Users -> Password reset requests**, the admin creates a one-time link and shares it. No extra setup.
+
+To send reset links **by email** (fully self-service) add these Render environment variables:
+
+| Key | Value |
+|---|---|
+| `EMAIL_PROVIDER` | `resend` |
+| `RESEND_API_KEY` | API key from https://resend.com (API Keys) |
+| `EMAIL_FROM` | a **verified** sender, e.g. `HPAI Assessment <no-reply@healthplans.ai>` (verify the domain in Resend: add its DNS records) |
+| `APP_URL` | your Vercel URL, no trailing slash (links become `APP_URL/reset-password/<token>`) |
+| `RESET_LINK_MINUTES` | optional, default `30` |
+
+Notes: all four of `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM` and `APP_URL` must be set, otherwise the app silently stays in admin-assisted mode. Without a verified domain Resend only delivers to the account owner's own address, so verify `healthplans.ai` first. SMTP is not used (Render's free tier blocks outbound SMTP ports). If an email cannot be sent the request falls back to the admin queue automatically.
+
+**Admin account lost its password?** Run `NEW_PASSWORD='...' npm run reset-admin-password` from `backend/` (see backend/README.md); it talks to the database in `backend/.env`.

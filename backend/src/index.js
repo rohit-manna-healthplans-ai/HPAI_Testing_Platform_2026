@@ -45,6 +45,12 @@ const rl = { windowMs: 60 * 1000, standardHeaders: true, legacyHeaders: false };
 app.use('/api/auth/login',
   rateLimit({ ...rl, limit: 600, message: { error: 'Too many requests from this network. Please wait a minute.' } }),
   rateLimit({ ...rl, limit: 10, keyGenerator: (req) => `e:${String(req.body?.email || '').trim().toLowerCase().slice(0, 120)}`, message: { error: 'Too many login attempts for this account. Please wait a minute.' } }));
+// Forgot password: 60 requests/hour per IP (an office may share one IP) and 5/hour per email; reset submits are CPU-bound (bcrypt), so cap them too.
+const hr = { windowMs: 60 * 60 * 1000, standardHeaders: true, legacyHeaders: false };
+app.use('/api/auth/forgot-password',
+  rateLimit({ ...hr, limit: 60, message: { error: 'Too many reset requests from this network. Please try again later.' } }),
+  rateLimit({ ...hr, limit: 5, keyGenerator: (req) => `fp:${String(req.body?.email || '').trim().toLowerCase().slice(0, 120)}`, message: { error: 'Too many reset requests for this email. Please try again in an hour, or ask your admin.' } }));
+app.use('/api/auth/reset-password', rateLimit({ ...rl, limit: 120, message: { error: 'Too many requests. Please wait a minute.' } }));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 // Public one-time invite links. Tokens are 192-bit random, so the limit only guards against abuse; it is per-IP and
