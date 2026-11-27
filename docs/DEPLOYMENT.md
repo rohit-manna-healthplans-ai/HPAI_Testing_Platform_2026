@@ -77,3 +77,19 @@ To send reset links **by email** (fully self-service) add these Render environme
 Notes: all four of `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM` and `APP_URL` must be set, otherwise the app silently stays in admin-assisted mode. Without a verified domain Resend only delivers to the account owner's own address, so verify `healthplans.ai` first. SMTP is not used (Render's free tier blocks outbound SMTP ports). If an email cannot be sent the request falls back to the admin queue automatically.
 
 **Admin account lost its password?** Run `NEW_PASSWORD='...' npm run reset-admin-password` from `backend/` (see backend/README.md); it talks to the database in `backend/.env`.
+
+## 9. v1.1 release order (new question types and subjects)
+
+The v1.1 bank adds drag-and-drop questions, 20 short coding questions and two new subjects (`mlflow`, `cloud`). Adding questions changes the bank version, which the API and the frontend compare. Follow this order:
+
+1. **Pick a quiet moment: no test running.** While the two sides are on different bank versions, a candidate who is mid-test sees the "The app was updated. Please refresh the page" message. Progress is saved, but avoid it.
+2. **Deploy the backend first** (push to `prod`; Render redeploys). Check `/api/health` shows the expected version and `"db":"ok"`.
+3. **Then deploy the frontend** (Vercel). Hard-refresh (Ctrl+F5) once and open a session preview to confirm the new subjects show up.
+4. **Give the new subjects to existing proctors, once, after the new backend is live:**
+   ```
+   npm --prefix backend run grant-new-subjects            # dry run: prints who would get ML Workflow and Cloud
+   npm --prefix backend run grant-new-subjects -- --apply # writes the missing rows (safe to repeat; it never removes anything)
+   ```
+   Do **not** apply it before the new backend is live: the old API does not know the new subject ids. You can also tick the two subjects per proctor on the Users page instead of running the script.
+5. `BANK_MASTER_KEY` is **unchanged** (the new questions are sealed with the same key). No new environment variables are needed.
+6. Smoke test: create a session with one ML Workflow and one Cloud question, open it as a candidate, drag an answer, submit, and check the result page shows marks only.

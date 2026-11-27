@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Badge, Button, EmptyState, Modal, useToast } from './ui.jsx';
 import { QuestionPreview } from './QuestionBankView.jsx';
+import { unitsLabel } from './interactive/meta.js';
 import { LEVELS, availability, bucketize, paperTotals, shuffleUnlocked, sortPaper, swapSame } from '../pages/proctor/wizardUtils.js';
 
 /**
@@ -119,7 +120,7 @@ export default function PaperReview({ subjects, bankList, byId, paper, setPaper,
                       <div className="pr-title">{kept && <span className="pr-tick" aria-hidden="true">✓</span>}<strong>{q.title}</strong></div>
                       <div className="row" style={{ gap: 6 }}><Badge tone={q.difficulty}>{q.difficulty}</Badge><Badge>{q.type}</Badge></div>
                     </div>
-                    <div className="muted small">{q.marks} marks · {q.time_mins} min{q.type === 'mcq' ? '' : ` · ${q.test_count || 0} tests`}{(q.tags || []).length ? ` · ${(q.tags || []).slice(0, 3).join(', ')}` : ''}</div>
+                    <div className="muted small">{q.marks} marks · {q.time_mins} min{q.type === 'mcq' ? '' : ` · ${unitsLabel(q)}`}{(q.tags || []).length ? ` · ${(q.tags || []).slice(0, 3).join(', ')}` : ''}</div>
                     <div className="pr-actions">
                       <Button type="button" size="sm" variant="ghost" onClick={() => setPreview(q)}>Preview</Button>
                       <Button type="button" size="sm" variant={kept ? 'success' : 'ghost'} aria-pressed={kept} onClick={() => toggleKeep(q.id)}>{kept ? '✓ Kept' : 'Keep'}</Button>

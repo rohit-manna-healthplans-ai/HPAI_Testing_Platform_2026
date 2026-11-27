@@ -3,8 +3,10 @@ import { runCoding, starterCode, warmUpPython } from './coding.js';
 import { scoreMcq } from './mcq.js';
 import { runUiChecks } from './ui.js';
 import { languageKind } from './languages.js';
+import { isInteractiveType, markInteractive, defaultInteractiveResponse, isInteractiveAnswered } from './interactive.js';
 
 export { starterCode, warmUpPython };
+export { INTERACTIVE_TYPES, isInteractiveType, markInteractive, interactiveProgress } from './interactive.js';
 export * from './languages.js';
 
 export const SQL_STARTER = '-- Write a single SELECT query\nSELECT \n';
@@ -27,7 +29,7 @@ export function defaultResponse(question) {
     case 'nosql': return { code: nosqlStarter(question) };
     case 'ui': return { files: { ...(question.config?.files || {}) } };
     case 'mcq': return { selected: [] };
-    default: return {};
+    default: return isInteractiveType(question.type) ? defaultInteractiveResponse(question) : {};
   }
 }
 
@@ -47,7 +49,7 @@ export function isAnswered(question, response) {
       return Object.keys({ ...orig, ...f }).some((k) => (orig[k] ?? '') !== (f[k] ?? ''));
     }
     case 'mcq': return (response.selected || []).length > 0;
-    default: return false;
+    default: return isInteractiveType(question.type) ? isInteractiveAnswered(question, response) : false;
   }
 }
 
@@ -55,7 +57,7 @@ export function isAnswered(question, response) {
  * Mark a question in the browser.
  * opts: { onlyVisible, onProgress }
  * returns { passed, total, results:[{index,name,passed,hidden,weight,message?}], error?, retryable?, mode? }
- * mode === 'syntax_only' for languages that cannot be executed in the browser (full marks for clean syntax).
+ * mode === 'syntax_only' for languages without a browser runtime (internal flag; stays in the saved response).
  */
 export async function runQuestion(question, response, opts = {}) {
   try {
@@ -65,6 +67,7 @@ export async function runQuestion(question, response, opts = {}) {
       case 'nosql': { const { runNosqlTests } = await import('./nosqlCore.js'); return runNosqlTests(question, response?.code, opts); }
       case 'ui': return await runUiChecks(question, response?.files, opts);
       case 'mcq': return scoreMcq(question, response);
+      case 'sequence': case 'match': case 'architecture': return markInteractive(question, response); // drag & drop types: no execution, no hidden/visible split
       default: return { passed: 0, total: 0, results: [] };
     }
   } catch (e) {
@@ -76,6 +79,7 @@ export async function runQuestion(question, response, opts = {}) {
 /** Total number of (weighted) tests for a question – used when we cannot grade (e.g. grading timed out). */
 export function totalTests(question, language) {
   if (question.type === 'mcq') return question.config?.multiple ? (question.config?.correct || []).length || 1 : 1;
+  if (isInteractiveType(question.type)) return (question.tests || []).length || question.test_count || 1;
   if (question.type === 'coding' && language && languageKind(language) === 'syntax') return question.config?.needs_control_flow === false ? 6 : 8;
   return (question.tests || []).reduce((s, t) => s + (t.weight ?? 1), 0) || 1;
 }

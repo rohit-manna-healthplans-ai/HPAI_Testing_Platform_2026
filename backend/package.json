@@ -10,7 +10,8 @@
     "seed": "node scripts/seed.js",
     "loadtest": "node scripts/loadtest.mjs",
     "test:bulk": "node scripts/integration-bulk.mjs",
-    "reset-admin-password": "node scripts/reset-admin-password.js"
+    "reset-admin-password": "node scripts/reset-admin-password.js",
+    "grant-new-subjects": "node scripts/grant-new-subjects.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
