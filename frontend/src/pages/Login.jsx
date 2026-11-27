@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { homeFor, useAuth } from '../components/AuthContext.jsx';
 import { Button, Field } from '../components/ui.jsx';
 import { useWake } from '../utils/wake.js';
@@ -50,7 +50,9 @@ export default function Login() {
               <button type="button" className="pw-toggle" onClick={() => setShow((s) => !s)} aria-label={show ? 'Hide password' : 'Show password'}>{show ? 'Hide' : 'Show'}</button>
             </div>
           </Field>
-          {waking && busy && <div className="wake-note" role="status"><span className="spinner spinner-sm" /> Waking up the server… this can take up to a minute. Please wait.</div>}
+          <div className="forgot-row"><Link className="forgot-link" to="/forgot-password">Forgot password?</Link></div>
+          {loc.state?.notice && <div className="alert alert-success" role="status">{loc.state.notice}</div>}
+          {waking && busy &&<div className="wake-note" role="status"><span className="spinner spinner-sm" /> Waking up the server… this can take up to a minute. Please wait.</div>}
           {error && <div className="alert alert-error" role="alert">{error}</div>}
           <Button type="submit" loading={busy} style={{ width: '100%', minHeight: 48 }}>Sign in</Button>
         </div>

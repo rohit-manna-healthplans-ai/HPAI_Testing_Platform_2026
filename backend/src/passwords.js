@@ -23,3 +23,20 @@ export const comparePassword = (pw, hash) => (typeof hash === 'string' && hash.s
 /** Cheap, unusable password marker for accounts that can only sign in via a one-time link. */
 export const unusablePassword = () => `!${crypto.randomBytes(18).toString('hex')}`;
 export const pendingHashes = () => ({ active, queued: queue.length });
+
+const COMMON = new Set(['password', 'password1', 'password123', '12345678', '123456789', '1234567890', 'qwertyui', 'qwerty123', 'iloveyou', 'admin123', 'welcome1', 'letmein1', 'changeme', 'changeme123']);
+/**
+ * Shared rule for passwords chosen by the user (change-password, reset link, admin recovery script).
+ * Returns an error message, or null when the password is acceptable.
+ */
+export function passwordProblem(pw, email = '') {
+  const p = String(pw ?? '');
+  if (p.length < 8) return 'Password must be at least 8 characters';
+  if (p.length > 128) return 'Password must be at most 128 characters';
+  if (!p.trim()) return 'Password cannot be blank';
+  const lower = p.toLowerCase();
+  const e = String(email || '').trim().toLowerCase();
+  if (e && (lower === e || lower === e.split('@')[0])) return 'Password must not be your email address';
+  if (COMMON.has(lower)) return 'That password is too common. Choose something harder to guess';
+  return null;
+}

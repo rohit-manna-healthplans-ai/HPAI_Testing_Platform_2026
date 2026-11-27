@@ -8,6 +8,8 @@ import { createUser, bulkCreate, publicUser } from '../users.js';
 import { listAttempts } from '../attemptQueries.js';
 import { CATALOG, isSubjectId } from '../catalog.js';
 import { keysFor, guardCheck, guardFail, guardOk } from '../bankKeys.js';
+import { ttlCache } from '../cache.js';
+import { newToken, hashToken, resetMinutes } from '../resetTokens.js';
 
 const r = Router();
 r.use(requireAuth, requireRole('admin'));
@@ -46,7 +48,11 @@ r.patch('/users/:id', asyncHandler(async (req, res) => {
   const add = (col, val) => { params.push(val); sets.push(`${col}=$${params.length}`); };
   if (name !== undefined) { if (String(name).trim().length < 2) throw new HttpError(400, 'Name must be at least 2 characters'); add('name', String(name).trim()); }
   if (active !== undefined) add('active', !!active);
-  if (password) { if (String(password).length < 6) throw new HttpError(400, 'Password must be at least 6 characters'); add('password_hash', await hashPassword(String(password), 10)); }
+  if (password) {
+    if (String(password).length < 6) throw new HttpError(400, 'Password must be at least 6 characters');
+    add('password_hash', await hashPassword(String(password), 10));
+    add('password_changed_at', new Date()); // old sessions of that user stop working (app clock, same as JWT iat)
+  }
   if (proctor_id !== undefined) {
     if (cur.role !== 'candidate') throw new HttpError(400, 'Only candidates can be assigned to a proctor');
     if (proctor_id) await assertProctor(proctor_id);
@@ -55,8 +61,68 @@ r.patch('/users/:id', asyncHandler(async (req, res) => {
   if (!sets.length) throw new HttpError(400, 'Nothing to update');
   const { rows } = await query(`UPDATE users SET ${sets.join(',')} WHERE id=$1 RETURNING id,name,email,role,active,proctor_id,created_at`, params);
   dropUser(id);
+  if (password) { // the admin handled it with a temporary password: close any open "forgot password" request of that user
+    await query("UPDATE password_resets SET status='dismissed', token_hash=NULL WHERE user_id=$1 AND status IN ('pending','issued')", [id]);
+    resetCountCache.clear();
+  }
   await audit(req.user.id, 'user.update', 'user', id, { fields: Object.keys(req.body), password_reset: !!password });
   res.json(rows[0]);
+}));
+
+// ---------- forgot-password requests (proctors ask; the admin issues a one-time link, or an email was sent automatically) ----------
+const resetCountCache = ttlCache(15 * 1000, 4);
+// effective_status: an 'issued' link past its expiry is shown as 'expired' (and can be re-issued)
+const RESET_SELECT = `SELECT pr.id, pr.user_id, u.name, u.email, u.active, pr.requested_at, pr.issued_at, pr.expires_at, pr.used_at, pr.emailed, pr.status,
+       CASE WHEN pr.status='issued' AND pr.expires_at <= now() THEN 'expired' ELSE pr.status END AS effective_status
+  FROM password_resets pr JOIN users u ON u.id=pr.user_id`;
+
+r.get('/password-resets/count', asyncHandler(async (req, res) => {
+  let n = resetCountCache.get('pending');
+  if (n === undefined) {
+    n = (await query("SELECT count(*)::int AS n FROM password_resets WHERE status='pending'")).rows[0].n;
+    resetCountCache.set('pending', n);
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json({ pending: n });
+}));
+
+r.get('/password-resets', asyncHandler(async (req, res) => {
+  const st = String(req.query.status || 'pending');
+  if (!['pending', 'issued', 'all'].includes(st)) throw new HttpError(400, 'status must be pending, issued or all');
+  const where = st === 'all' ? '' : 'WHERE pr.status=$1';
+  const { rows } = await query(`${RESET_SELECT} ${where} ORDER BY pr.requested_at DESC LIMIT 100`, st === 'all' ? [] : [st]);
+  res.set('Cache-Control', 'no-store');
+  res.json(rows);
+}));
+
+r.post('/password-resets/:id/issue', asyncHandler(async (req, res) => {
+  const { id } = req.params; if (!isUuid(id)) throw new HttpError(400, 'Invalid id');
+  const cur = (await query(`${RESET_SELECT} WHERE pr.id=$1`, [id])).rows[0];
+  if (!cur) throw new HttpError(404, 'Request not found');
+  if (cur.status === 'used') throw new HttpError(409, 'This request was already completed');
+  if (cur.status === 'dismissed') throw new HttpError(409, 'This request was dismissed. Ask the proctor to request a new link.');
+  if (!cur.active) throw new HttpError(409, 'This account is deactivated');
+  const token = newToken();
+  const minutes = resetMinutes();
+  const { rows } = await query(
+    `UPDATE password_resets SET status='issued', token_hash=$2, issued_by=$3, issued_at=now(), expires_at=now() + make_interval(mins => $4::int), emailed=false
+      WHERE id=$1 AND status IN ('pending','issued') RETURNING expires_at`, [id, hashToken(token), req.user.id, minutes]);
+  if (!rows.length) throw new HttpError(409, 'This request can no longer be issued');
+  resetCountCache.clear();
+  await audit(req.user.id, 'auth.reset_link_issued', 'user', cur.user_id, { request_id: id }); // the token itself is never logged
+  res.set('Cache-Control', 'no-store');
+  res.json({ token, expires_at: rows[0].expires_at, minutes, name: cur.name, email: cur.email });
+}));
+
+r.post('/password-resets/:id/dismiss', asyncHandler(async (req, res) => {
+  const { id } = req.params; if (!isUuid(id)) throw new HttpError(400, 'Invalid id');
+  const cur = (await query('SELECT id, user_id, status FROM password_resets WHERE id=$1', [id])).rows[0];
+  if (!cur) throw new HttpError(404, 'Request not found');
+  if (cur.status === 'used') throw new HttpError(409, 'This request was already completed');
+  await query("UPDATE password_resets SET status='dismissed', token_hash=NULL WHERE id=$1 AND status IN ('pending','issued')", [id]);
+  resetCountCache.clear();
+  await audit(req.user.id, 'auth.reset_request_dismissed', 'user', cur.user_id, { request_id: id });
+  res.json({ ok: true });
 }));
 
 async function assertProctor(id) {

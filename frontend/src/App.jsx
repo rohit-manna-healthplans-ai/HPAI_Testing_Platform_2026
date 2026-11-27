@@ -8,6 +8,8 @@ import Login from './pages/Login.jsx';
 // Every page except Login is code-split so the first paint only ships what it needs.
 const Verify = lazy(() => import('./pages/Verify.jsx'));
 const Invite = lazy(() => import('./pages/Invite.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword.jsx'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
 const Users = lazy(() => import('./pages/admin/Users.jsx'));
 const Questions = lazy(() => import('./pages/admin/Questions.jsx'));
@@ -38,6 +40,9 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/verify/:code" element={<Verify />} />
         <Route path="/t/:token" element={<Invite />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         <Route element={<RequireRole roles={['admin']}><Layout /></RequireRole>}>
           <Route path="/admin" element={<AdminDashboard />} />
