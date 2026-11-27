@@ -1,6 +1,6 @@
 // Language registry for coding questions.
-//  kind 'exec'   : runs in the browser (Python via Pyodide, JavaScript, TypeScript via sucrase) -> full test-case marking
-//  kind 'syntax' : no browser runtime -> parsed with tree-sitter, syntax-checked only (full marks for a clean, complete implementation)
+//  kind 'exec'   : runs in the browser (Python via Pyodide, JavaScript, TypeScript via sucrase)
+//  kind 'syntax' : no browser runtime -> parsed with tree-sitter (internal marking details: docs/INTERACTIVE_TYPES.md)
 
 const RESERVED = new Set(['string', 'int', 'long', 'double', 'float', 'char', 'bool', 'boolean', 'var', 'val', 'fun', 'fn', 'let', 'in', 'is', 'as', 'do', 'if', 'for', 'while', 'end', 'class', 'new', 'this', 'type', 'default', 'function', 'def', 'return', 'match', 'mod', 'ref', 'out', 'params', 'object', 'base', 'byte', 'short', 'case', 'switch', 'enum', 'const', 'static', 'public', 'private', 'void', 'self', 'use', 'crate', 'struct', 'range', 'len', 'map', 'set']);
 const ident = (name, i) => {
@@ -101,9 +101,5 @@ export const starterFor = (id, question) => getLanguage(id).starter(question);
 /** Languages that get live red-squiggle linting from tree-sitter (JS/TS keep Monaco's own diagnostics). */
 export const lintLanguage = (id) => (isSyntaxLang(id) || id === 'python' ? id : null);
 
-export const LANGUAGE_GROUPS = [
-  { label: 'Run & auto-mark', langs: LANGUAGES.filter((l) => l.kind === 'exec') },
-  { label: 'Syntax check only', langs: LANGUAGES.filter((l) => l.kind === 'syntax') },
-];
-
-export const SYNTAX_NOTE = 'This language is syntax-checked only (no code execution): marks are given for valid syntax and a complete implementation.';
+/** One flat list for the language dropdown (Python, JavaScript, TypeScript first, then the rest). No grouping or labels. */
+export const LANGUAGE_LIST = LANGUAGES;

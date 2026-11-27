@@ -2,7 +2,11 @@ import { lazy, Suspense } from 'react';
 import { api } from '../api.js';
 import { ATTEMPT_STATUS, fmtDate, fmtDuration, num, pct } from '../utils/format.js';
 import { Badge, ErrorBox, Modal, ProgressBar, Spinner, useAsync } from './ui.jsx';
+import { isInteractiveType } from './interactive/meta.js';
 import './invites.css';
+
+// Drag & drop answers (sequence / match / architecture) render through a small lazy chunk.
+const ReviewResponse = lazy(() => import('./interactive/ReviewResponse.jsx'));
 
 const KEYWORDS = new Set(('def return if else elif for while in not and or is None True False class import from as pass break continue lambda try except finally with yield ' +
   'function const let var new this typeof null undefined true false async await of switch case default throw ' +
@@ -76,12 +80,14 @@ export default function AttemptReview({ attemptId, onClose }) {
             return (
               <div key={ans.question_id} className="card" style={{ boxShadow: 'none' }}>
                 <div className="card-head">
-                  <div className="row"><strong>{ans.title}</strong><Badge>{ans.type}</Badge><Badge tone={ans.difficulty}>{ans.difficulty}</Badge>{ans.response?.language && <Badge tone="blue">{langLabel(ans.response.language)}</Badge>}{ans.response?.mode === 'syntax_only' && <Badge tone="amber">Auto-marked by syntax check</Badge>}</div>
-                  <div><b>{num(ans.score)}</b><span className="muted"> / {num(ans.max_score)}</span> <span className="muted small">· tests {ans.tests_passed}/{ans.tests_total}</span></div>
+                  <div className="row"><strong>{ans.title}</strong><Badge>{ans.type}</Badge><Badge tone={ans.difficulty}>{ans.difficulty}</Badge>{ans.response?.language && <Badge tone="blue">{langLabel(ans.response.language)}</Badge>}{ans.response?.mode === 'syntax_only' && <Badge>Syntax-validated language</Badge>}</div>
+                  <div><b>{num(ans.score)}</b><span className="muted"> / {num(ans.max_score)}</span> <span className="muted small">· {isInteractiveType(ans.type) ? 'correct' : 'tests'} {ans.tests_passed}/{ans.tests_total}</span></div>
                 </div>
                 <div className="card-body stack">
                   <ProgressBar value={ans.score} max={ans.max_score} tone={pct(ans.score, ans.max_score) >= 60 ? 'green' : pct(ans.score, ans.max_score) >= 30 ? 'amber' : 'red'} />
-                  {code ? <pre className="pre">{highlight(code)}</pre> : <span className="muted small">No response.</span>}
+                  {isInteractiveType(ans.type)
+                    ? <Suspense fallback={<span className="muted small">Loading…</span>}><ReviewResponse questionId={ans.question_id} response={ans.response} /></Suspense>
+                    : code ? <pre className="pre">{highlight(code)}</pre> : <span className="muted small">No response.</span>}
                   {ans.type === 'coding' && ans.response?.code && (
                     <Suspense fallback={<span className="muted small">Loading complexity tools…</span>}>
                       <ComplexityPanel attemptId={attemptId} answer={ans} />

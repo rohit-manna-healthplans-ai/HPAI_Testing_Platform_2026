@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, auth } from '../../api.js';
 import { loadBank, getRunnableQuestions, BANK_UPDATED_MESSAGE } from '../../bank/index.js';
@@ -6,14 +6,19 @@ import CodeEditor from '../../components/CodeEditor.jsx';
 import UIQuestion from '../../runners/UIPreview.jsx';
 import {
   runQuestion, defaultResponse, isAnswered, warmUpPython, getSqlPreview, totalTests,
-  LANGUAGE_GROUPS, getLanguage, isSyntaxLang, lintLanguage, starterFor, SYNTAX_NOTE,
+  LANGUAGE_LIST, getLanguage, isSyntaxLang, lintLanguage, starterFor,
 } from '../../runners/index.js';
 import { short } from '../../runners/compare.js';
 import {
   useProctoring, MAX_SCREEN_LEAVES, leaveWarningText, leaveLimitReason, submitReasonKey, clearProctoringFlags,
 } from '../../utils/proctoring.js';
 import { dropQueue, flushEvents } from '../../utils/eventQueue.js';
+import { isInteractiveType, interactiveFromResponse, HOW_TO } from '../../components/interactive/meta.js';
 import './test.css';
+
+// Drag & drop question types (sequence / match / architecture): separate lazy chunk, loaded only when such a question is on screen.
+const InteractiveQuestion = lazy(() => import('../../components/interactive/InteractiveQuestion.jsx'));
+const INTERACTIVE_TITLE = { sequence: 'Arrange the steps in the right order', match: 'Match each service to its description', architecture: 'Build the architecture — drag services into the boxes' };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Free-tier friendly saving: ONE batched PUT (<= 20 answers) every 45-60 s (+ up to 10 s jitter on the first tick), dirty answers only.
@@ -22,7 +27,7 @@ const SAVE_SPAN_MS = 15000;
 const SYNC_EVERY_MS = 5 * 60 * 1000; // timer re-sync when no save has refreshed the server clock (e.g. proctor extended the time)
 const MAX_PER_SAVE = 20;
 const hashPayload = (p) => JSON.stringify([p.response, p.tests_passed, p.tests_total]); // time_spent excluded: it changes every second
-const TYPE_LABEL = { coding: 'Coding', sql: 'SQL', nosql: 'NoSQL', ui: 'Quick Dev', mcq: 'MCQ' };
+const TYPE_LABEL = { coding: 'Coding', sql: 'SQL', nosql: 'NoSQL', ui: 'Quick Dev', mcq: 'MCQ', sequence: 'Sequence', match: 'Matching', architecture: 'Architecture' };
 const MIN_RUN_GAP_MS = 1000; // debounce for rapid Run clicks
 
 function fmtTime(sec) {
@@ -47,14 +52,14 @@ function fromResponse(q, resp) {
     case 'sql': case 'nosql': return { code: resp?.code ?? defaultResponse(q).code };
     case 'ui': return { files: { ...(q.config?.files || {}), ...(resp?.files || {}) } };
     case 'mcq': return { selected: resp?.selected || [] };
-    default: return {};
+    default: return isInteractiveType(q.type) ? interactiveFromResponse(q, resp) : {};
   }
 }
 function toResponse(q, d) {
   if (!d) return defaultResponse(q);
   if (q.type === 'coding') {
     const base = { language: d.language, code: codeFor(q, d) };
-    return isSyntaxLang(d.language) ? { ...base, mode: 'syntax_only' } : base; // reviewers badge these "Syntax-checked only"
+    return isSyntaxLang(d.language) ? { ...base, mode: 'syntax_only' } : base; // internal flag kept in the saved response (staff-only marker in the attempt review)
   }
   return d;
 }
@@ -525,7 +530,6 @@ export default function TestRunner() {
   const clockClass = remaining !== null && remaining < 60 ? 'red' : remaining !== null && remaining < 300 ? 'amber' : '';
   const candidateName = auth.user?.name;
   const lang = q.type === 'coding' ? draft.language : null;
-  const syntaxOnly = lang ? isSyntaxLang(lang) : false;
   const warnText = warning ? leaveWarningText(warning) : null;
 
   return (
@@ -584,17 +588,12 @@ export default function TestRunner() {
                     onChange={(e) => updateDraft(q, (d) => ({ ...d, language: e.target.value }))}
                     aria-label="Language"
                   >
-                    {LANGUAGE_GROUPS.map((g) => (
-                      <optgroup key={g.label} label={g.label}>
-                        {g.langs.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-                      </optgroup>
-                    ))}
+                    {LANGUAGE_LIST.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                   <button className="tr-btn tr-btn-ghost" onClick={() => updateDraft(q, (d) => ({ ...d, codes: { ...d.codes, [d.language]: starterFor(d.language, q) } }))}>Reset</button>
                 </div>
                 <SaveBadge state={saveState[q.id]} />
               </div>
-              {syntaxOnly && <div className="tr-notestrip">ℹ {SYNTAX_NOTE}</div>}
               <CodeEditor
                 path={`${q.id}.${draft.language}`}
                 language={getLanguage(draft.language).monaco}
@@ -662,7 +661,19 @@ export default function TestRunner() {
             </div>
           )}
 
-          {q.type !== 'mcq' && <RunConsole q={q} rs={rs} />}
+          {isInteractiveType(q.type) && (
+            <div className="tr-interactive">
+              <div className="tr-toolbar">
+                <div className="tr-toolbar-left"><b>{INTERACTIVE_TITLE[q.type]}</b></div>
+                <SaveBadge state={saveState[q.id]} />
+              </div>
+              <Suspense fallback={<div className="tr-editor-loading">Loading the question…</div>}>
+                <InteractiveQuestion key={q.id} question={q} value={draft} onChange={(v) => updateDraft(q, () => v)} />
+              </Suspense>
+            </div>
+          )}
+
+          {q.type !== 'mcq' && !isInteractiveType(q.type) && <RunConsole q={q} rs={rs} />}
 
           <div className="tr-foot">
             <div className="tr-foot-left">
@@ -670,9 +681,9 @@ export default function TestRunner() {
               <button className="tr-btn tr-btn-ghost" onClick={() => goto(active + 1)} disabled={active === questions.length - 1}>Next →</button>
             </div>
             <div className="tr-foot-right">
-              {q.type !== 'mcq' && (
+              {q.type !== 'mcq' && !isInteractiveType(q.type) && (
                 <button className="tr-btn tr-btn-secondary" onClick={() => run(q)} disabled={rs?.running}>
-                  {rs?.running ? 'Running…' : syntaxOnly ? '✓ Check syntax' : q.type === 'ui' ? '▶ Run checks' : '▶ Run sample tests'}
+                  {rs?.running ? 'Running…' : q.type === 'ui' ? '▶ Run checks' : '▶ Run sample tests'}
                 </button>
               )}
               <button className="tr-btn tr-btn-secondary" onClick={saveCurrent}>Save</button>
@@ -774,18 +785,20 @@ function RunConsole({ q, rs }) {
   if (!rs) return <div className="tr-console empty">Run your solution to see sample results here.</div>;
   if (rs.running) return <div className="tr-console"><div className="tr-spinner sm" /> {rs.python ? 'Running… (the first Python run downloads the runtime, this can take a few seconds)' : 'Running…'}</div>;
   const r = rs.result;
+  // Languages without a browser runtime: one neutral line, never the internal per-check details.
+  if (r.mode === 'syntax_only') {
+    return <div className="tr-console"><div className="tr-console-sum">Sample tests run for Python, JavaScript and TypeScript. Your code in this language is saved and will be evaluated when you submit.</div></div>;
+  }
   const list = r.results || [];
   const ok = list.filter((x) => x.passed).length;
-  const syntax = r.mode === 'syntax_only';
-  const noun = syntax ? 'syntax checks' : q.type === 'ui' ? 'checks' : 'tests';
+  const noun = q.type === 'ui' ? 'checks' : 'tests';
   return (
     <div className="tr-console">
       {list.length ? (
-        <div className={`tr-console-sum ${ok === list.length ? 'ok' : ''}`}>{ok} of {list.length} {syntax ? 'syntax checks' : `sample ${noun}`} passed</div>
+        <div className={`tr-console-sum ${ok === list.length ? 'ok' : ''}`}>{ok} of {list.length} sample {noun} passed</div>
       ) : (
         <div className="tr-console-sum">{r.error ? 'Could not run' : 'No sample tests for this question.'}</div>
       )}
-      {syntax && <div className="tr-console-note">Syntax-checked only — this language is not executed. The portal marks it automatically: marks are awarded for clean syntax and a complete implementation.</div>}
       {r.error && list.every((x) => !x.passed) && <pre className="tr-console-err">{r.error}</pre>}
       {list.map((x) => (
         <div key={x.index} className={`tr-case ${x.passed ? 'pass' : 'fail'}`}>
@@ -818,6 +831,10 @@ function ProblemBody({ q, preview }) {
     <div className="tr-problem-body">
       {q.type === 'mcq' && cfg.scenario && <div className="tr-scenario"><b>Scenario</b><p>{cfg.scenario}</p></div>}
       <p className="tr-statement"><Rich text={q.statement} /></p>
+
+      {isInteractiveType(q.type) && (
+        <div className="tr-box"><h3>How to answer</h3><ul>{(HOW_TO[q.type] || []).map((t, i) => <li key={i}>{t}</li>)}</ul></div>
+      )}
 
       {cfg.constraints?.length > 0 && (
         <div className="tr-box"><h3>Constraints</h3><ul>{cfg.constraints.map((c, i) => <li key={i}>{c}</li>)}</ul></div>

@@ -98,7 +98,7 @@ async function runCodingNow(question, response, { onlyVisible = false, onProgres
 
   if (!code.trim()) return failAll('No code written.');
 
-  // Languages without a browser runtime: syntax-checked only (full marks for clean syntax).
+  // Languages without a browser runtime (internal marking details: docs/INTERACTIVE_TYPES.md).
   if (languageKind(requested) === 'syntax') {
     const { runSyntaxOnly } = await import('./syntaxCheck.js');
     return runSyntaxOnly(question, { ...response, language: requested });

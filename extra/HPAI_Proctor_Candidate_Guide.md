@@ -50,7 +50,7 @@ A step-by-step guide to running a timed coding assessment with the HPAI Assessme
 - Cards: **Sessions**, **Live now** (attempts in progress), **Submitted**, **Candidates**.
 - **My sessions** lists your sessions and their progress.
 - Menu: **Dashboard**, **Sessions**, **Question bank**, **Candidates**.
-- The **Question bank** is read-only. You can read every question (statement, constraints, examples, sample tests, marks, time) but **never the answers or hidden tests**.
+- The **Question bank** is read-only. You can read every question (statement, constraints, examples, sample tests, marks, time) but **never the answers or hidden tests**. The drag-and-drop questions (see [section 4.6](#46-question-types-you-will-see)) show their scenario, visual and the shuffled steps or services, never the correct order or placement.
 - Press **+ New session** to start.
 
 ### 3.3 Create a session (5 steps)
@@ -70,6 +70,7 @@ The wizard shows five steps: **Basics → Subjects → Review paper → Time →
   - **Same paper for everyone** — the system proposes random questions; you review them and swap any you do not like. Everyone gets exactly this paper.
   - **Different random set per candidate** — each candidate gets their own random questions from the counts you set. There is no review step.
 - Set how many **Easy**, **Medium** and **Hard** questions you want from each subject. The summary shows questions, marks and minutes of work.
+- Besides the original subjects, the wizard now offers **ML Workflow (Drag & Drop)** and **Cloud (AWS, Azure, GCP)**, if they are available to your account. The new questions are short — **about 2–4 minutes each** — so mix them in freely.
 - Press **Generate paper →** (same-paper mode) or **Next →**.
 
 **Step 3 — Review paper** *(same-paper mode)*
@@ -85,6 +86,8 @@ The system shows its proposed paper grouped by subject, with live totals of ques
 | **Remove** | Take it out of the paper. |
 
 Also: **+ Add question** (or **+ Add** per subject) and **↻ Shuffle all unlocked (N)**.
+
+**Preview works for every question type, including the new drag-and-drop ones.** For an ML Workflow question you see the scenario, the chart and the step cards in a shuffled tray; for a Cloud question you see the diagram with its empty slots and the palette of services (or the service chips and descriptions). You never see the correct order, slot placement or matches. Try a Preview yourself before you release the links, so you know what candidates will see.
 
 **Step 4 — Time**
 - The duration is worked out **after** you finalise the questions: question time × 1.2, rounded up to the next 5 minutes (at least 10). Example: 18 minutes of questions → **25 minutes**.
@@ -152,17 +155,11 @@ Then press **Enter fullscreen to begin**. The timer is already running.
 - **Question navigator:** **Q1, Q2, …** — a ✓ shows what you have answered, and the counter shows how many (for example `3/6 answered`).
 - **Left:** the problem — statement, constraints, examples and sample tests (hidden tests are only counted, not shown).
 - **Right:** the code editor with **colour highlighting** and **automatic indentation**.
-- **Language menu:**
-  - **Run & auto-mark:** Python, JavaScript, TypeScript — your code runs on real test cases.
-  - **Syntax check only:** C, C++, Java, C#, Go, Rust, Ruby, PHP, Kotlin, Swift, Bash — the code is checked for correct syntax and a complete implementation (not executed).
-- **▶ Run sample tests** shows how your code does on the sample tests. **More hidden tests run when you submit.** (The first Python run takes a few seconds to prepare.)
+- **Language menu:** pick your language from one list — Python, JavaScript, TypeScript, C, C++, Java, C#, Go, Rust, Ruby, PHP, Kotlin, Swift or Bash. Your code for each language is kept separately, so you can switch and come back.
+- **▶ Run sample tests** shows how your code does on the sample tests (sample tests run for Python, JavaScript and TypeScript). **More hidden tests run when you submit.** (The first Python run takes a few seconds to prepare.)
 - **← Prev / Next →** move between questions; **Submit assessment** finishes the test.
 
-**Other question types**
-- **SQL:** you see the sample tables and write one `SELECT` / `WITH` query.
-- **NoSQL (MongoDB-style):** you write a `find` specification or an aggregation pipeline.
-- **Quick Dev (UI Debug):** you fix a broken page and watch a **live preview**; use **▶ Run checks**.
-- **AI/ML:** scenario-based multiple-choice questions.
+**Other question types** — SQL, NoSQL, Quick Dev (UI Debug), AI/ML multiple-choice and the new drag-and-drop questions each have their own answer area. See [section 4.6](#46-question-types-you-will-see) for how to answer each one.
 
 ### 4.4 Warnings and automatic submission
 - **1st time you leave the screen:** *Warning 1 of 2* — press **I understand — return to the test**.
@@ -175,24 +172,46 @@ Then press **Enter fullscreen to begin**. The timer is already running.
 3. You see **only your marks**: total, percentage, **grade**, and **Marks by subject**. You never see the code, answers or test cases.
 4. Press **⬇ Download result PDF** or **🏅 Download certificate**. The certificate carries a unique **Certificate ID** that anyone can verify.
 
+### 4.6 Question types you will see
+
+A test can mix several kinds of question. Every question added in version 1.1 is designed to take **about 2–4 minutes**.
+
+| Type | What you see | How to answer |
+|---|---|---|
+| **Coding** | The problem, examples and constraints on the left; the code editor on the right. | Write your solution in the language you choose. **▶ Run sample tests** shows how you do on the 3 sample tests; the remaining hidden tests (7 for the newer short questions, 5 for the original ones) run when you submit. Any correct approach counts. |
+| **SQL** | The sample tables and the problem. | Write one `SELECT` / `WITH` query. |
+| **NoSQL (MongoDB-style)** | A sample collection and the problem. | Write a `find` specification or an aggregation pipeline. |
+| **Quick Dev (UI Debug)** | A broken page and a **live preview**. | Fix the HTML / CSS / JavaScript and use **▶ Run checks**. |
+| **AI/ML multiple-choice** | A short scenario and the options. | Pick the answer (or answers, when the question says "select all that apply"). |
+| **ML Workflow — put the steps in order** *(new)* | A scenario, a chart (for example a scatter plot, a confusion matrix, a loss curve or a data-split bar), a tray of **step cards**, and an empty **Your sequence** area. A **live pipeline diagram** lights up each stage as you place a step from it. | **Drag** the cards from the tray into **Your sequence**, in the order you would run them. Drag inside the sequence to reorder, or use the **↑ / ↓ / Add / Remove** buttons on each card (this also works with the keyboard and on touch screens). **Reset** starts again. A counter shows **how many steps you have placed**. Where two orders are equally sensible, either is accepted. **Steps you leave in the tray score nothing.** |
+| **Cloud — match the services** *(new)* | Service **chips** (for example AWS, Azure or Google Cloud services) and a list of descriptions. | **Drag** each service onto the description that fits it best. Each description takes one chip, and a couple of descriptions are extras that match nothing. On a touch screen you can tap a chip and then tap the description. |
+| **Cloud — build the architecture** *(new)* | A diagram with labelled, empty **slots**, arrows showing the flow, and a **palette of services**. | **Drag** a service from the palette into each slot (or tap a service, then tap a slot). You can move or remove a placed service. The palette contains a few services that **do not belong** — leave them out. Where a slot has more than one reasonable service, any of them is accepted. A counter shows **how many slots you have filled**. |
+
+**Good to know for the drag-and-drop questions**
+- There is **no Run button and no right/wrong feedback** during the test. Your arrangement **saves automatically**; you can change it any time before you submit.
+- Items you do not place (steps left in the tray, empty slots, unmatched chips) **score nothing for that part**, but a partly correct answer still earns **partial marks**.
+- There is **no negative marking**, but a **random arrangement earns almost nothing**, so use your knowledge.
+
 ---
 
 ## 5. How marking works (in brief)
 
 All marking is **automatic**. For each question:
 
-> **Question score = marks × tests passed ÷ total tests** (partial marking; hidden tests included)
+> **Question score = marks × tests passed ÷ total tests** (partial marking; hidden tests included). For the drag-and-drop questions a "test" is one ordering rule, one slot or one match.
 
 Marks per question: **Easy 10, Medium 20, Hard 30** (AI/ML multiple-choice: 5 / 10 / 15). There is **no negative marking**; an unanswered question scores 0.
 
 | Question type | What counts as one "test" |
 |---|---|
-| **Coding — Python, JavaScript, TypeScript** | One input → expected output case (8 per question: 3 visible + 5 hidden). |
-| **Coding — other languages** (syntax-checked) | Four equal checks: clean syntax, a non-trivial answer, a loop/condition where needed, and a result (return/print). **All four = full marks.** |
+| **Coding** | One input → expected output case. Original questions: 8 tests (3 visible + 5 hidden). **New short questions: 10 tests (3 visible + 7 hidden).** |
 | **SQL** | One data set (5–6 per question). Row values must match; row order is ignored unless the question needs `ORDER BY`. |
 | **NoSQL** | One data set (5 per question); the result documents must match. |
 | **Quick Dev (UI Debug)** | One behaviour check on the live page. |
 | **AI/ML multiple-choice** | Single answer: all or nothing. Multiple answers: correct picks − wrong picks (never below 0), out of the number of correct options. |
+| **ML Workflow (steps in order)** | One **ordering rule** ("step A must come before step B"). Score = marks × max(0, 2 × rules met − total rules) ÷ total rules, so a fully correct order earns full marks, one misplaced step still earns about 85 %, and random dragging earns about 9 %. Equally valid alternative orders are accepted. |
+| **Cloud — architecture** | One **slot** filled with an acceptable service (equivalent services are accepted). |
+| **Cloud — matching** | One service matched to the right description. |
 
 **Grades:** 80 % and above — **Excellent** · 60–79 % — **Good** · 40–59 % — **Fair** · below 40 % — **Needs Improvement**.
 
@@ -224,13 +243,16 @@ Marks per question: **Easy 10, Medium 20, Hard 30** (AI/ML multiple-choice: 5 / 
 | **Cannot see a subject in New session** | You can only use the subjects available to your account. If the wizard says **No subjects assigned**, ask the HPAI team. |
 | **Forgot your password** | Use **Forgot password?** on the sign-in page. |
 | **A Python question seems slow the first time** | The first Python run takes a few seconds to prepare. After that it is quick. |
+| **A drag-and-drop card will not move** | Click or tap the card first, then use the **↑ / ↓ / Add** buttons or tap the target slot instead of dragging. On a small screen the cards and slots are stacked, so scroll to the target. **Reset** clears the question. |
+| **A candidate asks "is my drag-and-drop answer right?"** | Drag-and-drop questions never show right or wrong during the test. The arrangement saves automatically and is marked when the test ends. |
+| **ML Workflow or Cloud is missing in New session** | You can only use the subjects available to your account. Ask the HPAI team to add them to your account. |
 | **Cannot find a link after leaving "Links ready"** | Links are shown only once. Use **Reissue** on the live board to create a fresh link for that Tester ID. |
 
 ---
 
 ## 8. Checklist for the day
 
-- [ ] Create the session a day early and check the paper in **Review paper**.
+- [ ] Create the session a day early and check the paper in **Review paper**. Use **Preview** on every question, including the drag-and-drop ones.
 - [ ] Decide the number of candidates (up to 50 per session) and prepare the names/emails list.
 - [ ] Release links in waves of **10–15** candidates, so everyone starts calmly.
 - [ ] Ask candidates to use a laptop with a stable internet connection and **Edge** or **Chrome**.
@@ -261,6 +283,8 @@ Marks per question: **Easy 10, Medium 20, Hard 30** (AI/ML multiple-choice: 5 / 
 | 14 | The live board | 0:55 | [3.5](#35-the-live-board) |
 | 15 | Reviewing an attempt | 0:35 | [3.6](#36-reviewing-an-attempt) |
 | 16 | Tips and checklist | 0:45 | [7](#7-troubleshooting), [8](#8-checklist-for-the-day) |
+
+*The video shows the original question types; the **drag-and-drop questions** added in version 1.1 (ML Workflow ordering, Cloud matching, Cloud architecture builder) are described in [section 4.6](#46-question-types-you-will-see).*
 
 *Chapter lengths are approximate; the narrator's pace depends on the voice and speed you choose. In the video you can change the voice and speed (⚙), toggle captions (C), voice (V) and music (M), jump between chapters (← →, or ☰ Chapters), and go fullscreen (F).*
 

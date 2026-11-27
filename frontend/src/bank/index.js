@@ -66,7 +66,9 @@ export async function unsealQuestion(q, keyB64) {
   const { sealed: _sealed, public_tests: _pt, ...rest } = q; // eslint-disable-line no-unused-vars
   const config = { ...(q.config || {}) };
   if (payload.correct !== undefined) config.correct = payload.correct;
-  return { ...rest, config, tests: payload.tests || [], revealed: true };
+  // Interactive (drag & drop) types: tests = one entry per scoring unit, solution = the reference answer (never in the public view).
+  const extra = payload.solution !== undefined ? { solution: payload.solution } : {};
+  return { ...rest, config, tests: payload.tests || [], ...extra, revealed: true };
 }
 
 /** Full (unsealed) questions for an attempt, in order. bankKeys: { [questionId]: base64Key } from the attempt payload. */

@@ -44,7 +44,7 @@ export default function ComplexityPanel({ attemptId, answer }) {
           <span className="cx-glyph" aria-hidden="true">⏱</span>
           <div>
             <strong>Time &amp; space complexity</strong>
-            <span className="muted small">{measurable ? 'Measured in this browser, with a static cross-check' : 'Static estimate — this language is not executed'}</span>
+            <span className="muted small">{measurable ? 'Measured in this browser, with a static cross-check' : 'Static estimate'}</span>
           </div>
         </div>
         <div className="cx-actions">
