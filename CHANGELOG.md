@@ -5,6 +5,8 @@ The version is shown in the app (login card and footer) and returned by `GET /ap
 
 ## Unreleased
 
+- **Fix:** reissuing an unused *resume* link no longer turns it into a start link (which failed with a server error when
+  redeemed); it stays a resume link, and an old start link for a tester who already started now returns a clear message.
 - **Drag-and-drop question types (v1.1):** three new interactive types with partial marking and sealed answers —
   **sequence** (put the steps of an ML pipeline in order, with a scenario visual and a live pipeline diagram),
   **match** (drag cloud services onto their descriptions) and **architecture** (drag services into the slots of a

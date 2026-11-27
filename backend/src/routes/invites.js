@@ -350,10 +350,13 @@ proctorInvites.post('/invites/:id/reissue', asyncHandler(async (req, res) => {
     const cur = (await c.query('SELECT * FROM invites WHERE id=$1 FOR UPDATE', [inv.id])).rows[0];
     if (cur.replaced_by) throw new HttpError(409, 'This link was already reissued. Use the latest link for this tester.');
     let purpose = 'start'; let attemptId = null; let candidateId = null;
-    if (cur.used_at) {
+    // A used link, or an unused RESUME link (issued earlier for a running attempt), must be replaced by another RESUME link for the
+    // same attempt. Turning it into a 'start' link would try to create a second attempt/user for a tester who already started.
+    if (cur.used_at || (cur.purpose === 'resume' && cur.attempt_id)) {
       const a = cur.attempt_id ? (await c.query('SELECT id, candidate_id, status FROM attempts WHERE id=$1', [cur.attempt_id])).rows[0] : null;
       if (!a || a.status !== 'in_progress') throw new HttpError(409, 'The attempt has already ended, so there is nothing to resume.');
       purpose = 'resume'; attemptId = a.id; candidateId = a.candidate_id;
+      if (!cur.used_at && !cur.revoked_at) await c.query('UPDATE invites SET revoked_at=now() WHERE id=$1', [cur.id]); // the unused resume link being replaced
     } else if (!cur.revoked_at) {
       await c.query('UPDATE invites SET revoked_at=now() WHERE id=$1', [cur.id]);
     }
@@ -442,6 +445,9 @@ publicInvites.post('/:token/redeem', asyncHandler(async (req, res) => {
         throw new HttpError(409, `This test has not opened yet. It opens at ${new Date(sess.opens_at).toISOString()}. Please try again then.`);
       }
       assertSessionStartable(sess);
+      // this tester already started (e.g. a stale 'start' link): never create a second user/attempt - ask for a resume link instead
+      const started = (await c.query('SELECT 1 FROM attempts WHERE session_id=$1 AND tester_id=$2 LIMIT 1', [sess.id, inv.tester_id])).rowCount;
+      if (started) throw new HttpError(409, 'This tester has already started the test. Please ask your proctor for a resume link.');
       // a locked invite carries the proctor's name/email and ignores what the browser sends
       const locked = !!(inv.name_locked && inv.label);
       const name = locked ? inv.label : (nameIn || inv.label || '');
